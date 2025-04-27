@@ -64,13 +64,15 @@ class Fighter():
           self.vel_y = -30
           self.jump = True
         #attack
-        if key[pygame.K_r] or key[pygame.K_t]:
+        if key[pygame.K_r] or key[pygame.K_t] or key[pygame.K_y]:
           self.attack(target)
           #determine which attack type was used
           if key[pygame.K_r]:
             self.attack_type = 1
           if key[pygame.K_t]:
             self.attack_type = 2
+          if key[pygame.K_y]:
+            self.attack_type = 3
 
 
       #check player 2 controls
@@ -87,13 +89,15 @@ class Fighter():
           self.vel_y = -30
           self.jump = True
         #attack
-        if key[pygame.K_KP1] or key[pygame.K_KP2]:
+        if key[pygame.K_j] or key[pygame.K_k] or key[pygame.K_l]:
           self.attack(target)
           #determine which attack type was used
-          if key[pygame.K_KP1]:
+          if key[pygame.K_j]:
             self.attack_type = 1
-          if key[pygame.K_KP2]:
+          if key[pygame.K_k]:
             self.attack_type = 2
+          if key[pygame.K_l]:
+            self.attack_type = 3
 
 
     #apply gravity
@@ -139,6 +143,8 @@ class Fighter():
         self.update_action(3)#3:attack1
       elif self.attack_type == 2:
         self.update_action(4)#4:attack2
+      elif self.attack_type == 3:
+        self.update_action(4)#Tạm thời dùng animation attack2 cho attack3
     elif self.jump == True:
       self.update_action(2)#2:jump
     elif self.running == True:

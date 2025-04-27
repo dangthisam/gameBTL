@@ -23,6 +23,8 @@ RED = (255, 0, 0)
 YELLOW = (255, 255, 0)
 WHITE = (255, 255, 255)
 BLUE = (0, 0, 255)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
 
 #define game variables
 #dem nguoc trươc khi choi vao game
@@ -39,6 +41,8 @@ game_over = False
 WIN_SCORE = 5
 #Biến để xác định ai là người thắng
 winner = 0
+#Thêm biến cho màn hình hướng dẫn
+show_controls = True
 
 #define fighter variables
 WARRIOR_SIZE = 162
@@ -78,6 +82,8 @@ WIZARD_ANIMATION_STEPS = [8, 8, 1, 8, 8, 3, 7]
 count_font = pygame.font.Font("assets/fonts/turok.ttf", 80)
 score_font = pygame.font.Font("assets/fonts/turok.ttf", 30)
 game_over_font = pygame.font.Font("assets/fonts/turok.ttf", 50)
+controls_font = pygame.font.Font("assets/fonts/turok.ttf", 25)
+title_font = pygame.font.Font("assets/fonts/turok.ttf", 40)
 
 #function for drawing text
 def draw_text(text, font, text_col, x, y):
@@ -95,6 +101,46 @@ def draw_health_bar(health, x, y):
   pygame.draw.rect(screen, WHITE, (x - 2, y - 2, 404, 34))
   pygame.draw.rect(screen, RED, (x, y, 400, 30))
   pygame.draw.rect(screen, YELLOW, (x, y, 400 * ratio, 30))
+
+#function to draw controls screen
+def draw_controls_screen():
+  # Vẽ nền tối mờ
+  s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+  s.set_alpha(220)
+  s.fill(BLACK)
+  screen.blit(s, (0, 0))
+  
+  # Vẽ tiêu đề
+  draw_text("HƯỚNG DẪN ĐIỀU KHIỂN", title_font, YELLOW, SCREEN_WIDTH // 2 - 220, 50)
+  
+  # Vẽ khung cho hướng dẫn người chơi 1
+  pygame.draw.rect(screen, BLUE, (50, 120, 400, 350), 0)
+  pygame.draw.rect(screen, WHITE, (50, 120, 400, 350), 3)
+  
+  # Vẽ hướng dẫn người chơi 1
+  draw_text("NGƯỜI CHƠI 1 (WARRIOR)", controls_font, WHITE, 75, 130)
+  draw_text("Di chuyển trái:    A", controls_font, WHITE, 75, 180)
+  draw_text("Di chuyển phải:    D", controls_font, WHITE, 75, 220)
+  draw_text("Nhảy:              W", controls_font, WHITE, 75, 260)
+  draw_text("Tấn công 1:        R", controls_font, WHITE, 75, 300)
+  draw_text("Tấn công 2:        T", controls_font, WHITE, 75, 340)
+  draw_text("Tấn công 3:        Y", controls_font, WHITE, 75, 380)
+  
+  # Vẽ khung cho hướng dẫn người chơi 2
+  pygame.draw.rect(screen, RED, (550, 120, 400, 350), 0)
+  pygame.draw.rect(screen, WHITE, (550, 120, 400, 350), 3)
+  
+  # Vẽ hướng dẫn người chơi 2
+  draw_text("NGƯỜI CHƠI 2 (WIZARD)", controls_font, WHITE, 575, 130)
+  draw_text("Di chuyển trái:    ←", controls_font, WHITE, 575, 180)
+  draw_text("Di chuyển phải:    →", controls_font, WHITE, 575, 220)
+  draw_text("Nhảy:              ↑", controls_font, WHITE, 575, 260)
+  draw_text("Tấn công 1:        J", controls_font, WHITE, 575, 300)
+  draw_text("Tấn công 2:        K", controls_font, WHITE, 575, 340)
+  draw_text("Tấn công 3:        L", controls_font, WHITE, 575, 380)
+  
+  # Hiển thị thông báo để bắt đầu
+  draw_text("Nhấn SPACEBAR để bắt đầu trò chơi", controls_font, GREEN, SCREEN_WIDTH // 2 - 200, 500)
 
 #function to reset game
 def reset_game():
@@ -119,68 +165,78 @@ while run:
   #draw background
   draw_bg()
 
-  #show player stats
-  draw_health_bar(fighter_1.health, 20, 20)
-  draw_health_bar(fighter_2.health, 580, 20)
-  draw_text("P1: " + str(score[0]), score_font, RED, 20, 60)
-  draw_text("P2: " + str(score[1]), score_font, RED, 580, 60)
-
-  #check if game is over
-  if game_over:
-    #display game over screen
-    draw_text(f"PLAYER {winner} WINS!", game_over_font, BLUE, SCREEN_WIDTH // 2 - 200, SCREEN_HEIGHT // 2 - 100)
-    draw_text("Press ENTER to play again", score_font, WHITE, SCREEN_WIDTH // 2 - 160, SCREEN_HEIGHT // 2)
-    #check for key press to restart game
+  if show_controls:
+    # Hiển thị màn hình hướng dẫn
+    draw_controls_screen()
+    # Kiểm tra nếu người chơi nhấn phím SPACE để bắt đầu trò chơi
     key = pygame.key.get_pressed()
-    if key[pygame.K_RETURN]:
-      fighter_1, fighter_2 = reset_game()
-  elif intro_count <= 0:
-    #move fighters if game is not over
-    fighter_1.move(SCREEN_WIDTH, SCREEN_HEIGHT, screen, fighter_2, round_over)
-    fighter_2.move(SCREEN_WIDTH, SCREEN_HEIGHT, screen, fighter_1, round_over)
+    if key[pygame.K_SPACE]:
+      show_controls = False
   else:
-    #display count timer
-    draw_text(str(intro_count), count_font, RED, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 3)
-    #update count timer
-    if (pygame.time.get_ticks() - last_count_update) >= 1000:
-      intro_count -= 1
-      last_count_update = pygame.time.get_ticks()
+    #show player stats
+    draw_health_bar(fighter_1.health, 20, 20)
+    draw_health_bar(fighter_2.health, 580, 20)
+    draw_text("P1: " + str(score[0]), score_font, RED, 20, 60)
+    draw_text("P2: " + str(score[1]), score_font, RED, 580, 60)
 
-  #update fighters
-  fighter_1.update()
-  fighter_2.update()
-
-  #draw fighters
-  fighter_1.draw(screen)
-  fighter_2.draw(screen)
-
-  #check for player defeat
-  if not game_over:
-    if round_over == False:
-      if fighter_1.alive == False:
-        score[1] += 1
-        round_over = True
-        round_over_time = pygame.time.get_ticks()
-        #check if player 2 has won the game
-        if score[1] >= WIN_SCORE:
-          game_over = True
-          winner = 2
-      elif fighter_2.alive == False:
-        score[0] += 1
-        round_over = True
-        round_over_time = pygame.time.get_ticks()
-        #check if player 1 has won the game
-        if score[0] >= WIN_SCORE:
-          game_over = True
-          winner = 1
+    #check if game is over
+    if game_over:
+      #display game over screen
+      draw_text(f"PLAYER {winner} WINS!", game_over_font, BLUE, SCREEN_WIDTH // 2 - 200, SCREEN_HEIGHT // 2 - 100)
+      draw_text("Press ENTER to play again", score_font, WHITE, SCREEN_WIDTH // 2 - 160, SCREEN_HEIGHT // 2)
+      #check for key press to restart game
+      key = pygame.key.get_pressed()
+      if key[pygame.K_RETURN]:
+        fighter_1, fighter_2 = reset_game()
+        # Hiển thị lại màn hình hướng dẫn sau khi reset game
+        show_controls = True
+    elif intro_count <= 0:
+      #move fighters if game is not over
+      fighter_1.move(SCREEN_WIDTH, SCREEN_HEIGHT, screen, fighter_2, round_over)
+      fighter_2.move(SCREEN_WIDTH, SCREEN_HEIGHT, screen, fighter_1, round_over)
     else:
-      #display victory image for the round
-      screen.blit(victory_img, (360, 150))
-      if pygame.time.get_ticks() - round_over_time > ROUND_OVER_COOLDOWN and not game_over:
-        round_over = False
-        intro_count = 5
-        fighter_1 = Fighter(1, 200, 310, False, WARRIOR_DATA, warrior_sheet, WARRIOR_ANIMATION_STEPS, sword_fx)
-        fighter_2 = Fighter(2, 700, 310, True, WIZARD_DATA, wizard_sheet, WIZARD_ANIMATION_STEPS, magic_fx)
+      #display count timer
+      draw_text(str(intro_count), count_font, RED, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 3)
+      #update count timer
+      if (pygame.time.get_ticks() - last_count_update) >= 1000:
+        intro_count -= 1
+        last_count_update = pygame.time.get_ticks()
+
+    #update fighters
+    fighter_1.update()
+    fighter_2.update()
+
+    #draw fighters
+    fighter_1.draw(screen)
+    fighter_2.draw(screen)
+
+    #check for player defeat
+    if not game_over:
+      if round_over == False:
+        if fighter_1.alive == False:
+          score[1] += 1
+          round_over = True
+          round_over_time = pygame.time.get_ticks()
+          #check if player 2 has won the game
+          if score[1] >= WIN_SCORE:
+            game_over = True
+            winner = 2
+        elif fighter_2.alive == False:
+          score[0] += 1
+          round_over = True
+          round_over_time = pygame.time.get_ticks()
+          #check if player 1 has won the game
+          if score[0] >= WIN_SCORE:
+            game_over = True
+            winner = 1
+      else:
+        #display victory image for the round
+        screen.blit(victory_img, (360, 150))
+        if pygame.time.get_ticks() - round_over_time > ROUND_OVER_COOLDOWN and not game_over:
+          round_over = False
+          intro_count = 5
+          fighter_1 = Fighter(1, 200, 310, False, WARRIOR_DATA, warrior_sheet, WARRIOR_ANIMATION_STEPS, sword_fx)
+          fighter_2 = Fighter(2, 700, 310, True, WIZARD_DATA, wizard_sheet, WIZARD_ANIMATION_STEPS, magic_fx)
 
   #event handler
   for event in pygame.event.get():
