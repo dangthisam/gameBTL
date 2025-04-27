@@ -22,6 +22,7 @@ FPS = 60
 RED = (255, 0, 0)
 YELLOW = (255, 255, 0)
 WHITE = (255, 255, 255)
+BLUE = (0, 0, 255)
 
 #define game variables
 #dem nguoc trươc khi choi vao game
@@ -32,6 +33,12 @@ score = [0, 0]#player scores. [P1, P2]
 round_over = False
 #chờ 2s để bắt đầu vòng chơi mới
 ROUND_OVER_COOLDOWN = 2000
+#Thêm biến để theo dõi khi trò chơi kết thúc
+game_over = False
+#Số điểm để thắng trò chơi
+WIN_SCORE = 5
+#Biến để xác định ai là người thắng
+winner = 0
 
 #define fighter variables
 WARRIOR_SIZE = 162
@@ -70,6 +77,7 @@ WIZARD_ANIMATION_STEPS = [8, 8, 1, 8, 8, 3, 7]
 #define font
 count_font = pygame.font.Font("assets/fonts/turok.ttf", 80)
 score_font = pygame.font.Font("assets/fonts/turok.ttf", 30)
+game_over_font = pygame.font.Font("assets/fonts/turok.ttf", 50)
 
 #function for drawing text
 def draw_text(text, font, text_col, x, y):
@@ -88,6 +96,15 @@ def draw_health_bar(health, x, y):
   pygame.draw.rect(screen, RED, (x, y, 400, 30))
   pygame.draw.rect(screen, YELLOW, (x, y, 400 * ratio, 30))
 
+#function to reset game
+def reset_game():
+  global game_over, round_over, intro_count, score, winner
+  game_over = False
+  round_over = False
+  intro_count = 5
+  score = [0, 0]
+  winner = 0
+  return Fighter(1, 200, 310, False, WARRIOR_DATA, warrior_sheet, WARRIOR_ANIMATION_STEPS, sword_fx), Fighter(2, 700, 310, True, WIZARD_DATA, wizard_sheet, WIZARD_ANIMATION_STEPS, magic_fx)
 
 #create two instances of fighters
 fighter_1 = Fighter(1, 200, 310, False, WARRIOR_DATA, warrior_sheet, WARRIOR_ANIMATION_STEPS, sword_fx)
@@ -108,9 +125,17 @@ while run:
   draw_text("P1: " + str(score[0]), score_font, RED, 20, 60)
   draw_text("P2: " + str(score[1]), score_font, RED, 580, 60)
 
-  #update countdown
-  if intro_count <= 0:
-    #move fighters
+  #check if game is over
+  if game_over:
+    #display game over screen
+    draw_text(f"PLAYER {winner} WINS!", game_over_font, BLUE, SCREEN_WIDTH // 2 - 200, SCREEN_HEIGHT // 2 - 100)
+    draw_text("Press ENTER to play again", score_font, WHITE, SCREEN_WIDTH // 2 - 160, SCREEN_HEIGHT // 2)
+    #check for key press to restart game
+    key = pygame.key.get_pressed()
+    if key[pygame.K_RETURN]:
+      fighter_1, fighter_2 = reset_game()
+  elif intro_count <= 0:
+    #move fighters if game is not over
     fighter_1.move(SCREEN_WIDTH, SCREEN_HEIGHT, screen, fighter_2, round_over)
     fighter_2.move(SCREEN_WIDTH, SCREEN_HEIGHT, screen, fighter_1, round_over)
   else:
@@ -130,29 +155,37 @@ while run:
   fighter_2.draw(screen)
 
   #check for player defeat
-  if round_over == False:
-    if fighter_1.alive == False:
-      score[1] += 1
-      round_over = True
-      round_over_time = pygame.time.get_ticks()
-    elif fighter_2.alive == False:
-      score[0] += 1
-      round_over = True
-      round_over_time = pygame.time.get_ticks()
-  else:
-    #display victory image
-    screen.blit(victory_img, (360, 150))
-    if pygame.time.get_ticks() - round_over_time > ROUND_OVER_COOLDOWN:
-      round_over = False
-      intro_count = 5
-      fighter_1 = Fighter(1, 200, 310, False, WARRIOR_DATA, warrior_sheet, WARRIOR_ANIMATION_STEPS, sword_fx)
-      fighter_2 = Fighter(2, 700, 310, True, WIZARD_DATA, wizard_sheet, WIZARD_ANIMATION_STEPS, magic_fx)
+  if not game_over:
+    if round_over == False:
+      if fighter_1.alive == False:
+        score[1] += 1
+        round_over = True
+        round_over_time = pygame.time.get_ticks()
+        #check if player 2 has won the game
+        if score[1] >= WIN_SCORE:
+          game_over = True
+          winner = 2
+      elif fighter_2.alive == False:
+        score[0] += 1
+        round_over = True
+        round_over_time = pygame.time.get_ticks()
+        #check if player 1 has won the game
+        if score[0] >= WIN_SCORE:
+          game_over = True
+          winner = 1
+    else:
+      #display victory image for the round
+      screen.blit(victory_img, (360, 150))
+      if pygame.time.get_ticks() - round_over_time > ROUND_OVER_COOLDOWN and not game_over:
+        round_over = False
+        intro_count = 5
+        fighter_1 = Fighter(1, 200, 310, False, WARRIOR_DATA, warrior_sheet, WARRIOR_ANIMATION_STEPS, sword_fx)
+        fighter_2 = Fighter(2, 700, 310, True, WIZARD_DATA, wizard_sheet, WIZARD_ANIMATION_STEPS, magic_fx)
 
   #event handler
   for event in pygame.event.get():
     if event.type == pygame.QUIT:
       run = False
-
 
   #update display
   pygame.display.update()
