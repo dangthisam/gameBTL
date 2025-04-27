@@ -10,6 +10,8 @@ SCREEN_WIDTH = 1000
 SCREEN_HEIGHT = 600
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+
+#Title and icon
 pygame.display.set_caption("Brawler")
 
 #set framerate
@@ -22,10 +24,13 @@ YELLOW = (255, 255, 0)
 WHITE = (255, 255, 255)
 
 #define game variables
-intro_count = 3
+#dem nguoc trươc khi choi vao game
+intro_count = 5
 last_count_update = pygame.time.get_ticks()
 score = [0, 0]#player scores. [P1, P2]
+#kiem tra vòng chơi đã kết thúc hay chưa
 round_over = False
+#chờ 2s để bắt đầu vòng chơi mới
 ROUND_OVER_COOLDOWN = 2000
 
 #define fighter variables
@@ -39,8 +44,9 @@ WIZARD_OFFSET = [112, 107]
 WIZARD_DATA = [WIZARD_SIZE, WIZARD_SCALE, WIZARD_OFFSET]
 
 #load music and sounds
-pygame.mixer.music.load("assets/audio/music.mp3")
-pygame.mixer.music.set_volume(0.5)
+pygame.mixer.music.load("assets/audio/ok.mp3")
+pygame.mixer.music.set_volume(1)
+#nhac lặp vô hạn
 pygame.mixer.music.play(-1, 0.0, 5000)
 sword_fx = pygame.mixer.Sound("assets/audio/sword.wav")
 sword_fx.set_volume(0.5)
@@ -138,7 +144,7 @@ while run:
     screen.blit(victory_img, (360, 150))
     if pygame.time.get_ticks() - round_over_time > ROUND_OVER_COOLDOWN:
       round_over = False
-      intro_count = 3
+      intro_count = 5
       fighter_1 = Fighter(1, 200, 310, False, WARRIOR_DATA, warrior_sheet, WARRIOR_ANIMATION_STEPS, sword_fx)
       fighter_2 = Fighter(2, 700, 310, True, WIZARD_DATA, wizard_sheet, WIZARD_ANIMATION_STEPS, magic_fx)
 
