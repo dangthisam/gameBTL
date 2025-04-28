@@ -9,6 +9,7 @@ pygame.init()
 SCREEN_WIDTH = 1000
 SCREEN_HEIGHT = 600
 
+
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
 #Title and icon
@@ -111,36 +112,36 @@ def draw_controls_screen():
   screen.blit(s, (0, 0))
   
   # Vẽ tiêu đề
-  draw_text("HƯỚNG DẪN ĐIỀU KHIỂN", title_font, YELLOW, SCREEN_WIDTH // 2 - 220, 50)
+  draw_text("KEY USE TO PLAY", title_font, YELLOW, SCREEN_WIDTH // 2 - 220, 50)
   
   # Vẽ khung cho hướng dẫn người chơi 1
   pygame.draw.rect(screen, BLUE, (50, 120, 400, 350), 0)
   pygame.draw.rect(screen, WHITE, (50, 120, 400, 350), 3)
   
   # Vẽ hướng dẫn người chơi 1
-  draw_text("NGƯỜI CHƠI 1 (WARRIOR)", controls_font, WHITE, 75, 130)
-  draw_text("Di chuyển trái:    A", controls_font, WHITE, 75, 180)
-  draw_text("Di chuyển phải:    D", controls_font, WHITE, 75, 220)
-  draw_text("Nhảy:              W", controls_font, WHITE, 75, 260)
-  draw_text("Tấn công 1:        R", controls_font, WHITE, 75, 300)
-  draw_text("Tấn công 2:        T", controls_font, WHITE, 75, 340)
-  draw_text("Tấn công 3:        Y", controls_font, WHITE, 75, 380)
+  draw_text("Player 1 (WARRIOR)", controls_font, WHITE, 75, 130)
+  draw_text("Left:    A", controls_font, WHITE, 75, 180)
+  draw_text("Right:    D", controls_font, WHITE, 75, 220)
+  draw_text("Up:              W", controls_font, WHITE, 75, 260)
+  draw_text("Attack 1:        R", controls_font, WHITE, 75, 300)
+  draw_text("Attack 2:        T", controls_font, WHITE, 75, 340)
+  draw_text("Attack 3:        Y", controls_font, WHITE, 75, 380)
   
   # Vẽ khung cho hướng dẫn người chơi 2
   pygame.draw.rect(screen, RED, (550, 120, 400, 350), 0)
   pygame.draw.rect(screen, WHITE, (550, 120, 400, 350), 3)
   
   # Vẽ hướng dẫn người chơi 2
-  draw_text("NGƯỜI CHƠI 2 (WIZARD)", controls_font, WHITE, 575, 130)
-  draw_text("Di chuyển trái:    ←", controls_font, WHITE, 575, 180)
-  draw_text("Di chuyển phải:    →", controls_font, WHITE, 575, 220)
-  draw_text("Nhảy:              ↑", controls_font, WHITE, 575, 260)
-  draw_text("Tấn công 1:        J", controls_font, WHITE, 575, 300)
-  draw_text("Tấn công 2:        K", controls_font, WHITE, 575, 340)
-  draw_text("Tấn công 3:        L", controls_font, WHITE, 575, 380)
+  draw_text("Player 2(WIZARD)", controls_font, WHITE, 575, 130)
+  draw_text("Left:    <---", controls_font, WHITE, 575, 180)
+  draw_text("Right:   --->", controls_font, WHITE, 575, 220)
+  draw_text("Up:              |", controls_font, WHITE, 575, 260)
+  draw_text("Attack 1:        J", controls_font, WHITE, 575, 300)
+  draw_text("Attack 2:        K", controls_font, WHITE, 575, 340)
+  draw_text("Attack 3:        L", controls_font, WHITE, 575, 380)
   
   # Hiển thị thông báo để bắt đầu
-  draw_text("Nhấn SPACEBAR để bắt đầu trò chơi", controls_font, GREEN, SCREEN_WIDTH // 2 - 200, 500)
+  draw_text("Enter key Space to continue", controls_font, GREEN, SCREEN_WIDTH // 2 - 200, 500)
 
 #function to reset game
 def reset_game():
