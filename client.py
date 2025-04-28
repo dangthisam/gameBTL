@@ -2,7 +2,11 @@ import socket
 import pickle
 import threading
 import pygame
+from pygame import mixer
 import sys
+import time
+
+from fighter import Fighter
 
 class GameClient:
     def __init__(self, host='localhost', port=5555):
@@ -13,171 +17,486 @@ class GameClient:
         self.player_id = None
         self.game_state = None
         self.running = True
+        self.connection_established = False
+        self.connection_error = None
+        self.connection_retry_count = 0
+        self.max_retries = 3
         
-        # Khởi tạo pygame
+        # Initialize pygame and mixer
+        mixer.init()
         pygame.init()
-        self.width, self.height = 800, 600
-        self.win = pygame.display.set_mode((self.width, self.height))
-        pygame.display.set_caption("Brawler Game")
+        
+        # Game window setup
+        self.SCREEN_WIDTH = 1000
+        self.SCREEN_HEIGHT = 600
+        self.screen = pygame.display.set_mode((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
+        pygame.display.set_caption("Brawler Game - Network Edition")
         self.clock = pygame.time.Clock()
+        self.FPS = 60
         
-        # Màu sắc
-        self.WHITE = (255, 255, 255)
+        # Colors
         self.RED = (255, 0, 0)
+        self.YELLOW = (255, 255, 0)
+        self.WHITE = (255, 255, 255)
         self.BLUE = (0, 0, 255)
+        self.BLACK = (0, 0, 0)
+        self.GREEN = (0, 255, 0)
         
-    def connect(self):
-        """Kết nối đến server"""
+        # Game variables
+        self.intro_count = 5
+        self.last_count_update = pygame.time.get_ticks()
+        self.round_over = False
+        self.ROUND_OVER_COOLDOWN = 2000
+        self.game_over = False
+        self.WIN_SCORE = 5
+        self.winner = 0
+        self.show_controls = True
+        
+        # Fighter variables
+        self.WARRIOR_SIZE = 162
+        self.WARRIOR_SCALE = 4
+        self.WARRIOR_OFFSET = [72, 56]
+        self.WARRIOR_DATA = [self.WARRIOR_SIZE, self.WARRIOR_SCALE, self.WARRIOR_OFFSET]
+        self.WIZARD_SIZE = 250
+        self.WIZARD_SCALE = 3
+        self.WIZARD_OFFSET = [112, 107]
+        self.WIZARD_DATA = [self.WIZARD_SIZE, self.WIZARD_SCALE, self.WIZARD_OFFSET]
+        
+        # Load resources
+        self.load_resources()
+        
+        # Create fighters
+        self.fighter_1 = Fighter(1, 200, 310, False, self.WARRIOR_DATA, self.warrior_sheet, 
+                                [10, 8, 1, 7, 7, 3, 7], self.sword_fx)
+        self.fighter_2 = Fighter(2, 700, 310, True, self.WIZARD_DATA, self.wizard_sheet, 
+                                [8, 8, 1, 8, 8, 3, 7], self.magic_fx)
+        
+        # Network update rate (to prevent flooding the server)
+        self.last_update_time = 0
+        self.update_interval = 1000 / 30  # 30 updates per second
+        
+    def load_resources(self):
+        """Load game resources"""
         try:
-            self.client.connect(self.addr)
-            print(f"Đã kết nối đến server tại {self.addr}")
+            # Load music and sounds
+            pygame.mixer.music.load("assets/audio/ok.mp3")
+            pygame.mixer.music.set_volume(1)
+            pygame.mixer.music.play(-1, 0.0, 5000)
+            self.sword_fx = pygame.mixer.Sound("assets/audio/sword.wav")
+            self.sword_fx.set_volume(0.5)
+            self.magic_fx = pygame.mixer.Sound("assets/audio/magic.wav")
+            self.magic_fx.set_volume(0.75)
             
-            # Nhận ID người chơi từ server
-            data = self.client.recv(4096)
-            response = pickle.loads(data)
+            # Load background image
+            self.bg_image = pygame.image.load("assets/images/background/background.jpg").convert_alpha()
             
-            if "error" in response:
-                print(f"Lỗi: {response['error']}")
-                return False
+            # Load spritesheets
+            self.warrior_sheet = pygame.image.load("assets/images/warrior/Sprites/warrior.png").convert_alpha()
+            self.wizard_sheet = pygame.image.load("assets/images/wizard/Sprites/wizard.png").convert_alpha()
             
-            self.player_id = response["player_id"]
-            print(f"Bạn là {self.player_id}")
+            # Load victory image
+            self.victory_img = pygame.image.load("assets/images/icons/victory.png").convert_alpha()
             
-            # Khởi động thread nhận dữ liệu từ server
-            receive_thread = threading.Thread(target=self.receive_data)
-            receive_thread.daemon = True
-            receive_thread.start()
-            
-            return True
-            
+            # Define fonts
+            self.count_font = pygame.font.Font("assets/fonts/turok.ttf", 80)
+            self.score_font = pygame.font.Font("assets/fonts/turok.ttf", 30)
+            self.game_over_font = pygame.font.Font("assets/fonts/turok.ttf", 50)
+            self.controls_font = pygame.font.Font("assets/fonts/turok.ttf", 25)
+            self.title_font = pygame.font.Font("assets/fonts/turok.ttf", 40)
         except Exception as e:
-            print(f"Lỗi kết nối: {e}")
+            print(f"Error loading resources: {e}")
+            pygame.quit()
+            sys.exit()
+    
+    def connect(self):
+        """Connect to the server with retry mechanism"""
+        while self.connection_retry_count < self.max_retries and not self.connection_established:
+            try:
+                print(f"Attempting to connect to server at {self.addr} (Attempt {self.connection_retry_count + 1}/{self.max_retries})")
+                
+                # Set socket timeout for connection
+                self.client.settimeout(5)
+                self.client.connect(self.addr)
+                
+                # Reset timeout to None (blocking mode) for normal operation
+                self.client.settimeout(None)
+                
+                print(f"Connected to server at {self.addr}")
+                
+                # Receive player ID from server
+                data = self.client.recv(4096)
+                if not data:
+                    raise Exception("No data received from server")
+                    
+                response = pickle.loads(data)
+                
+                if "error" in response:
+                    raise Exception(f"Server error: {response['error']}")
+                
+                self.player_id = response["player_id"]
+                print(f"You are {self.player_id}")
+                
+                # Send initial confirmation to server
+                self.send_data({"player_id": self.player_id, "status": "connected"})
+                
+                # Start receiving data from server
+                self.connection_established = True
+                receive_thread = threading.Thread(target=self.receive_data)
+                receive_thread.daemon = True
+                receive_thread.start()
+                
+                # Connection successful
+                return True
+                
+            except Exception as e:
+                self.connection_error = str(e)
+                print(f"Connection error: {e}")
+                self.connection_retry_count += 1
+                
+                # Close socket and create a new one for retry
+                try:
+                    self.client.close()
+                except:
+                    pass
+                    
+                self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                time.sleep(1)
+        
+        # If we've exhausted our retries
+        if not self.connection_established:
+            print("Failed to connect to server after multiple attempts")
             return False
-            
+    
     def receive_data(self):
-        """Nhận dữ liệu từ server liên tục"""
+        """Continuously receive data from server"""
+        self.client.settimeout(5)  # Set timeout to detect disconnection
+        
         while self.running:
             try:
                 data = self.client.recv(4096)
                 if not data:
+                    print("Server disconnected (no data)")
                     break
                     
                 self.game_state = pickle.loads(data)
                 
+                # Update local game state based on server data
+                if self.game_state and "game_active" in self.game_state:
+                    if self.game_state["game_active"]:
+                        # Update fighters positions and states
+                        if self.player_id == "player1" and "player1" in self.game_state:
+                            self.fighter_1.health = self.game_state["player1"]["health"]
+                            # Update other player's position
+                            if "player2" in self.game_state:
+                                self.fighter_2.rect.x = self.game_state["player2"]["x"]
+                                self.fighter_2.rect.y = self.game_state["player2"]["y"]
+                                self.fighter_2.health = self.game_state["player2"]["health"]
+                                self.fighter_2.action = self.game_state["player2"]["action"]
+                                self.fighter_2.frame_index = self.game_state["player2"]["frame_index"]
+                                self.fighter_2.flip = self.game_state["player2"]["flip"]
+                                
+                        elif self.player_id == "player2" and "player2" in self.game_state:
+                            self.fighter_2.health = self.game_state["player2"]["health"]
+                            # Update other player's position
+                            if "player1" in self.game_state:
+                                self.fighter_1.rect.x = self.game_state["player1"]["x"]
+                                self.fighter_1.rect.y = self.game_state["player1"]["y"]
+                                self.fighter_1.health = self.game_state["player1"]["health"]
+                                self.fighter_1.action = self.game_state["player1"]["action"]
+                                self.fighter_1.frame_index = self.game_state["player1"]["frame_index"]
+                                self.fighter_1.flip = self.game_state["player1"]["flip"]
+                
+            except socket.timeout:
+                # Just retry on timeout
+                continue
+            except ConnectionResetError:
+                print("Connection reset by server")
+                break
+            except ConnectionAbortedError:
+                print("Connection aborted")
+                break
             except Exception as e:
-                print(f"Lỗi nhận dữ liệu: {e}")
+                print(f"Error receiving data: {e}")
                 break
                 
-        print("Ngắt kết nối từ server")
+        print("Disconnected from server")
+        self.connection_established = False
         self.running = False
         
     def send_data(self, data):
-        """Gửi dữ liệu đến server"""
-        try:
-            self.client.send(pickle.dumps(data))
-        except Exception as e:
-            print(f"Lỗi gửi dữ liệu: {e}")
-            self.running = False
-            
-    def process_input(self):
-        """Xử lý đầu vào từ người chơi"""
-        keys = pygame.key.get_pressed()
-        
-        # Vị trí hiện tại
-        if self.game_state and self.player_id in self.game_state:
-            current_x = self.game_state[self.player_id]["x"]
-            current_y = self.game_state[self.player_id]["y"]
-            
-            # Chuyển động
-            move_x, move_y = 0, 0
-            speed = 5
-            
-            if keys[pygame.K_LEFT]:
-                move_x = -speed
-            if keys[pygame.K_RIGHT]:
-                move_x = speed
-            if keys[pygame.K_UP]:
-                move_y = -speed
-            if keys[pygame.K_DOWN]:
-                move_y = speed
-                
-            # Chỉ gửi dữ liệu nếu có sự thay đổi
-            if move_x != 0 or move_y != 0:
-                new_x = current_x + move_x
-                new_y = current_y + move_y
-                
-                # Giới hạn trong màn hình
-                new_x = max(0, min(self.width - 50, new_x))
-                new_y = max(0, min(self.height - 50, new_y))
-                
-                # Gửi vị trí mới đến server
-                self.send_data({
-                    "position": {"x": new_x, "y": new_y}
-                })
-                
-            # Xử lý nút tấn công
-            if keys[pygame.K_SPACE]:
-                self.send_data({
-                    "action": "attack"
-                })
-                
-    def render(self):
-        """Hiển thị trạng thái game"""
-        self.win.fill((0, 0, 0))  # Xóa màn hình
-        
-        if self.game_state:
-            # Hiển thị thông báo nếu game chưa bắt đầu
-            if not self.game_state["game_active"]:
-                font = pygame.font.SysFont(None, 36)
-                text = font.render("Đang chờ người chơi khác...", True, self.WHITE)
-                self.win.blit(text, (self.width//2 - text.get_width()//2, self.height//2))
-            else:
-                # Vẽ người chơi 1
-                if "player1" in self.game_state:
-                    pygame.draw.rect(self.win, self.RED, 
-                                    (self.game_state["player1"]["x"], 
-                                     self.game_state["player1"]["y"], 50, 50))
-                
-                # Vẽ người chơi 2
-                if "player2" in self.game_state:
-                    pygame.draw.rect(self.win, self.BLUE, 
-                                    (self.game_state["player2"]["x"], 
-                                     self.game_state["player2"]["y"], 50, 50))
-                
-                # Hiển thị điểm số
-                font = pygame.font.SysFont(None, 24)
-                score1 = font.render(f"P1: {self.game_state['player1']['score']}", True, self.WHITE)
-                score2 = font.render(f"P2: {self.game_state['player2']['score']}", True, self.WHITE)
-                self.win.blit(score1, (10, 10))
-                self.win.blit(score2, (10, 40))
-                
-                # Hiển thị thông tin người chơi
-                player_info = font.render(f"Bạn là: {self.player_id}", True, self.WHITE)
-                self.win.blit(player_info, (self.width - player_info.get_width() - 10, 10))
-        
-        pygame.display.update()
-        
-    def run(self):
-        """Vòng lặp chính của game"""
-        if not self.connect():
+        """Send data to server with error handling"""
+        if not self.connection_established:
             return
             
-        # Vòng lặp game
-        while self.running:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.running = False
-                    
-            self.process_input()
-            self.render()
-            self.clock.tick(60)  # 60 FPS
+        try:
+            serialized_data = pickle.dumps(data)
+            self.client.send(serialized_data)
+        except ConnectionResetError:
+            print("Connection reset by server while sending data")
+            self.connection_established = False
+            self.running = False
+        except Exception as e:
+            print(f"Error sending data: {e}")
+            self.connection_established = False
+            self.running = False
+    
+    def draw_text(self, text, font, text_col, x, y):
+        """Draw text on screen"""
+        img = font.render(text, True, text_col)
+        text_rect = img.get_rect(center=(x, y))
+        self.screen.blit(img, text_rect)
+    
+    def draw_left_aligned_text(self, text, font, text_col, x, y):
+        """Draw left-aligned text"""
+        img = font.render(text, True, text_col)
+        self.screen.blit(img, (x, y))
+    
+    def draw_bg(self):
+        """Draw background"""
+        scaled_bg = pygame.transform.scale(self.bg_image, (self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
+        self.screen.blit(scaled_bg, (0, 0))
+    
+    def draw_health_bar(self, health, x, y):
+        """Draw health bar"""
+        ratio = health / 100
+        pygame.draw.rect(self.screen, self.WHITE, (x - 2, y - 2, 404, 34))
+        pygame.draw.rect(self.screen, self.RED, (x, y, 400, 30))
+        pygame.draw.rect(self.screen, self.YELLOW, (x, y, 400 * ratio, 30))
+    
+    def draw_controls_screen(self):
+        """Draw controls screen"""
+        # Draw dark translucent background
+        s = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
+        s.set_alpha(220)
+        s.fill(self.BLACK)
+        self.screen.blit(s, (0, 0))
+        
+        # Draw title
+        self.draw_text("KEYS TO PLAY", self.title_font, self.YELLOW, self.SCREEN_WIDTH // 2, 50)
+        
+        # Draw player 1 controls frame
+        pygame.draw.rect(self.screen, self.BLUE, (50, 120, 400, 350), 0)
+        pygame.draw.rect(self.screen, self.WHITE, (50, 120, 400, 350), 3)
+        
+        # Draw player 1 controls
+        self.draw_left_aligned_text("Player 1 (WARRIOR)", self.controls_font, self.WHITE, 75, 130)
+        self.draw_left_aligned_text("Left:         A", self.controls_font, self.WHITE, 75, 180)
+        self.draw_left_aligned_text("Right:        D", self.controls_font, self.WHITE, 75, 220)
+        self.draw_left_aligned_text("Up:           W", self.controls_font, self.WHITE, 75, 260)
+        self.draw_left_aligned_text("Attack 1:     R", self.controls_font, self.WHITE, 75, 300)
+        self.draw_left_aligned_text("Attack 2:     T", self.controls_font, self.WHITE, 75, 340)
+        self.draw_left_aligned_text("Attack 3:     Y", self.controls_font, self.WHITE, 75, 380)
+        
+        # Draw player 2 controls frame
+        pygame.draw.rect(self.screen, self.RED, (550, 120, 400, 350), 0)
+        pygame.draw.rect(self.screen, self.WHITE, (550, 120, 400, 350), 3)
+        
+        # Draw player 2 controls
+        self.draw_left_aligned_text("Player 2 (WIZARD)", self.controls_font, self.WHITE, 575, 130)
+        self.draw_left_aligned_text("Left:         ←", self.controls_font, self.WHITE, 575, 180)
+        self.draw_left_aligned_text("Right:        →", self.controls_font, self.WHITE, 575, 220)
+        self.draw_left_aligned_text("Up:           ↑", self.controls_font, self.WHITE, 575, 260)
+        self.draw_left_aligned_text("Attack 1:     J", self.controls_font, self.WHITE, 575, 300)
+        self.draw_left_aligned_text("Attack 2:     K", self.controls_font, self.WHITE, 575, 340)
+        self.draw_left_aligned_text("Attack 3:     L", self.controls_font, self.WHITE, 575, 380)
+        
+        # Display start prompt
+        self.draw_text("Press Space to continue", self.controls_font, self.GREEN, self.SCREEN_WIDTH // 2, 500)
+    
+    def waiting_screen(self):
+        """Show waiting for other player screen"""
+        # Draw dark translucent background
+        s = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
+        s.set_alpha(220)
+        s.fill(self.BLACK)
+        self.screen.blit(s, (0, 0))
+        
+        # Draw waiting message
+        self.draw_text("WAITING FOR OTHER PLAYER", self.title_font, self.YELLOW, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 50)
+        self.draw_text("Please wait...", self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 + 30)
+    
+    def connection_error_screen(self):
+        """Show connection error screen"""
+        # Draw dark background
+        s = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
+        s.set_alpha(255)
+        s.fill(self.BLACK)
+        self.screen.blit(s, (0, 0))
+        
+        # Draw error message
+        self.draw_text("CONNECTION ERROR", self.title_font, self.RED, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
+        self.draw_text(f"Could not connect to server at {self.server}:{self.port}", 
+                     self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 30)
+        
+        if self.connection_error:
+            # Split error message into multiple lines if needed
+            error_lines = [self.connection_error[i:i+50] for i in range(0, len(self.connection_error), 50)]
+            for i, line in enumerate(error_lines):
+                self.draw_text(line, self.controls_font, self.WHITE, 
+                              self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 + 10 + (i * 30))
+        
+        # Draw retry or exit options
+        self.draw_text("Press 'R' to retry or 'ESC' to exit", self.controls_font, 
+                     self.YELLOW, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 + 100)
+    
+    def send_player_state(self):
+        """Send current player state to server with rate limiting"""
+        current_time = pygame.time.get_ticks()
+        
+        # Only send updates at specified interval
+        if current_time - self.last_update_time < self.update_interval:
+            return
             
-        # Dọn dẹp khi kết thúc
+        self.last_update_time = current_time
+        
+        if self.player_id == "player1":
+            self.send_data({
+                "player_id": self.player_id,
+                "x": self.fighter_1.rect.x,
+                "y": self.fighter_1.rect.y,
+                "health": self.fighter_1.health,
+                "action": self.fighter_1.action,
+                "frame_index": self.fighter_1.frame_index,
+                "flip": self.fighter_1.flip,
+                "attacking": self.fighter_1.attacking,
+                "hit": self.fighter_1.hit
+            })
+        elif self.player_id == "player2":
+            self.send_data({
+                "player_id": self.player_id,
+                "x": self.fighter_2.rect.x,
+                "y": self.fighter_2.rect.y,
+                "health": self.fighter_2.health,
+                "action": self.fighter_2.action,
+                "frame_index": self.fighter_2.frame_index,
+                "flip": self.fighter_2.flip,
+                "attacking": self.fighter_2.attacking,
+                "hit": self.fighter_2.hit
+            })
+    
+    def process_input(self):
+        """Process player input"""
+        # Update fighter based on player_id
+        if self.player_id == "player1":
+            self.fighter_1.move(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.screen, self.fighter_2, self.round_over)
+        elif self.player_id == "player2":
+            self.fighter_2.move(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.screen, self.fighter_1, self.round_over)
+        
+        self.send_player_state()
+    
+    def run(self):
+        """Main game loop"""
+        while True:
+            # Attempt to connect if not connected
+            if not self.connection_established and self.connection_retry_count == 0:
+                if not self.connect():
+                    # Failed to connect
+                    pass
+            
+            # Game loop
+            while self.running:
+                self.clock.tick(self.FPS)
+                
+                # Process events
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self.running = False
+                        pygame.quit()
+                        self.client.close()
+                        sys.exit()
+                
+                # Check connection status
+                if not self.connection_established:
+                    self.connection_error_screen()
+                    keys = pygame.key.get_pressed()
+                    if keys[pygame.K_r]:
+                        # Reset connection parameters
+                        self.connection_retry_count = 0
+                        break  # Break out of game loop to retry connection
+                    elif keys[pygame.K_ESCAPE]:
+                        pygame.quit()
+                        self.client.close()
+                        sys.exit()
+                else:
+                    # Draw background
+                    self.draw_bg()
+                    
+                    # Check if we're in control screen
+                    if self.show_controls:
+                        self.draw_controls_screen()
+                        key = pygame.key.get_pressed()
+                        if key[pygame.K_SPACE]:
+                            self.show_controls = False
+                            # Tell server we're ready
+                            self.send_data({"status": "ready", "player_id": self.player_id})
+                    else:
+                        # If we have game state and game is active
+                        if self.game_state and "game_active" in self.game_state:
+                            if not self.game_state["game_active"]:
+                                # Show waiting screen
+                                self.waiting_screen()
+                            else:
+                                # Update health bars
+                                if "player1" in self.game_state and "health" in self.game_state["player1"]:
+                                    self.draw_health_bar(self.game_state["player1"]["health"], 20, 20)
+                                if "player2" in self.game_state and "health" in self.game_state["player2"]:
+                                    self.draw_health_bar(self.game_state["player2"]["health"], 580, 20)
+                                
+                                # Update scores
+                                if "scores" in self.game_state:
+                                    self.draw_left_aligned_text("P1: " + str(self.game_state["scores"][0]), self.score_font, self.RED, 20, 60)
+                                    self.draw_left_aligned_text("P2: " + str(self.game_state["scores"][1]), self.score_font, self.RED, 580, 60)
+                                
+                                # Check if round is over
+                                if "round_over" in self.game_state and self.game_state["round_over"]:
+                                    # Display victory image
+                                    victory_rect = self.victory_img.get_rect(center=(self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 50))
+                                    self.screen.blit(self.victory_img, victory_rect)
+                                elif "intro_count" in self.game_state and self.game_state["intro_count"] > 0:
+                                    # Display count timer
+                                    self.draw_text(str(self.game_state["intro_count"]), self.count_font, self.RED, 
+                                                 self.SCREEN_WIDTH / 2, self.SCREEN_HEIGHT / 3)
+                                else:
+                                    # Process player input
+                                    self.process_input()
+                                
+                                # Check for game over
+                                if "game_over" in self.game_state and self.game_state["game_over"]:
+                                    # Display game over message
+                                    self.draw_text(f"PLAYER {self.game_state['winner']} WINS!", self.game_over_font, self.BLUE, 
+                                                 self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
+                                    self.draw_text("Waiting for server to restart...", self.score_font, self.WHITE, 
+                                                 self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2)
+                                
+                                # Update fighters
+                                self.fighter_1.update()
+                                self.fighter_2.update()
+                                
+                                # Draw fighters
+                                self.fighter_1.draw(self.screen)
+                                self.fighter_2.draw(self.screen)
+                        
+                        else:
+                            # Show waiting screen if no game state yet
+                            self.waiting_screen()
+                
+                # Update display
+                pygame.display.update()
+            
+            # If we're exiting properly
+            if self.connection_retry_count >= self.max_retries:
+                break
+
+        # Clean up when done
         pygame.quit()
-        self.client.close()
+        try:
+            self.client.close()
+        except:
+            pass
+        sys.exit()
 
 if __name__ == "__main__":
-    # Lấy địa chỉ IP server từ tham số dòng lệnh hoặc sử dụng localhost
+    # Get server IP from command line or use localhost
     server_ip = sys.argv[1] if len(sys.argv) > 1 else 'localhost'
     client = GameClient(host=server_ip)
     client.run()
