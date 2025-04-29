@@ -182,11 +182,19 @@ class GameClient:
                 
                 # Update local game state based on server data
                 if self.game_state and "game_active" in self.game_state:
+                    # Update game state variables
+                    self.round_over = self.game_state["round_over"]
+                    self.game_over = self.game_state["game_over"]
+                    self.winner = self.game_state["winner"]
+                    
                     if self.game_state["game_active"]:
-                        # Update fighters positions and states
-                        if self.player_id == "player1" and "player1" in self.game_state:
+                        # Update fighter states based on player role
+                        if self.player_id == "player1":
+                            # For player1: Only update health from server (in case of taking damage)
                             self.fighter_1.health = self.game_state["player1"]["health"]
-                            # Update other player's position
+                            self.fighter_1.hit = self.game_state["player1"]["hit"]
+                            
+                            # Update entire state of opponent
                             if "player2" in self.game_state:
                                 self.fighter_2.rect.x = self.game_state["player2"]["x"]
                                 self.fighter_2.rect.y = self.game_state["player2"]["y"]
@@ -194,10 +202,15 @@ class GameClient:
                                 self.fighter_2.action = self.game_state["player2"]["action"]
                                 self.fighter_2.frame_index = self.game_state["player2"]["frame_index"]
                                 self.fighter_2.flip = self.game_state["player2"]["flip"]
+                                self.fighter_2.attacking = self.game_state["player2"]["attacking"]
+                                self.fighter_2.hit = self.game_state["player2"]["hit"]
                                 
-                        elif self.player_id == "player2" and "player2" in self.game_state:
+                        elif self.player_id == "player2":
+                            # For player2: Only update health from server (in case of taking damage)
                             self.fighter_2.health = self.game_state["player2"]["health"]
-                            # Update other player's position
+                            self.fighter_2.hit = self.game_state["player2"]["hit"]
+                            
+                            # Update entire state of opponent
                             if "player1" in self.game_state:
                                 self.fighter_1.rect.x = self.game_state["player1"]["x"]
                                 self.fighter_1.rect.y = self.game_state["player1"]["y"]
@@ -205,6 +218,8 @@ class GameClient:
                                 self.fighter_1.action = self.game_state["player1"]["action"]
                                 self.fighter_1.frame_index = self.game_state["player1"]["frame_index"]
                                 self.fighter_1.flip = self.game_state["player1"]["flip"]
+                                self.fighter_1.attacking = self.game_state["player1"]["attacking"]
+                                self.fighter_1.hit = self.game_state["player1"]["hit"]
                 
             except socket.timeout:
                 # Just retry on timeout
@@ -376,11 +391,16 @@ class GameClient:
     
     def process_input(self):
         """Process player input"""
+        # Check if round is over or intro is still counting down
+        if self.game_state and (self.game_state["round_over"] or self.game_state["intro_count"] > 0):
+            # Don't process input during these states
+            return
+            
         # Update fighter based on player_id
         if self.player_id == "player1":
-            self.fighter_1.move(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.screen, self.fighter_2, self.round_over)
+            self.fighter_1.move(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.screen, self.fighter_2, False)
         elif self.player_id == "player2":
-            self.fighter_2.move(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.screen, self.fighter_1, self.round_over)
+            self.fighter_2.move(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.screen, self.fighter_1, False)
         
         self.send_player_state()
     
