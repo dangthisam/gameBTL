@@ -19,14 +19,17 @@ URL: [https://www.pygame.org/news ](https://www.pygame.org/news)
 1. Clone the git repo
 
 ```
-https://github.com/russs123/brawler_tut.git
+https://github.com/dangthisam/gameBTL.git
 ```
 
 2. Open project folder
 
 3. Explore
 
-4. Open main.py and run
+4. Open file server.py and run (python server.py in window or python3 server.py in linux)
+6. Open file client 
+ +  nếu bạn chạy trên cùng 1 máy thì chạy lệnh nầy ở trên hai terminal khác nhau: python client.py localhost in windows or python3 client.py localhost in linux
+ +Nếu bạn chạy ở hai máy khác máy chạy file server.py thì chạy lệnh "python client.py IPHOST" in host  in windows or "python client.py IP" in linux
 
 5. Play the game
 
@@ -47,9 +50,9 @@ https://user-images.githubusercontent.com/15172744/190894691-c52ac22d-b76c-4890-
 
 ## 6. Created By:
 
-Name: Coding With Russ
+Name: NGUYEN VAN SAM
 
-Project Name: Street Fighter Style Fighting Game in Python using Pygame - Complete Tutorial
+Project Name: Street Fighter Style Fighting Game in Python using Pygame and socket - Complete Tutorial
 
 Youtube: https://www.youtube.com/watch?v=s5bd9KMSSW4
 
