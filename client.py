@@ -51,7 +51,6 @@ class GameClient:
         self.WIN_SCORE = 5
         self.winner = 0
         self.show_controls = True
-        self.local_player_control = True  # Flag to ensure player controls are responsive
         
         # Fighter variables
         self.WARRIOR_SIZE = 162
@@ -75,7 +74,6 @@ class GameClient:
         # Network update rate (to prevent flooding the server)
         self.last_update_time = 0
         self.update_interval = 1000 / 30  # 30 updates per second
-        self.debug_mode = False  # Toggle for debug information
         
     def load_resources(self):
         """Load game resources"""
@@ -105,7 +103,6 @@ class GameClient:
             self.game_over_font = pygame.font.Font("assets/fonts/turok.ttf", 50)
             self.controls_font = pygame.font.Font("assets/fonts/turok.ttf", 25)
             self.title_font = pygame.font.Font("assets/fonts/turok.ttf", 40)
-            self.debug_font = pygame.font.Font("assets/fonts/turok.ttf", 16)
         except Exception as e:
             print(f"Error loading resources: {e}")
             pygame.quit()
@@ -183,34 +180,19 @@ class GameClient:
                     
                 self.game_state = pickle.loads(data)
                 
-                # Debug: Print entire game state occasionally
-                if self.debug_mode:
-                    print(f"Received game state: {self.game_state}")
-                
                 # Update local game state based on server data
                 if self.game_state and "game_active" in self.game_state:
-                    # Handle round reset signal from server
-                    if "round_reset" in self.game_state and self.game_state["round_reset"]:
-                        print("Received round reset signal - resetting local player state")
-                        self.reset_player_state()
-                    
                     # Update game state variables
                     self.round_over = self.game_state["round_over"]
                     self.game_over = self.game_state["game_over"]
                     self.winner = self.game_state["winner"]
-                    self.intro_count = self.game_state["intro_count"]
                     
                     if self.game_state["game_active"]:
                         # Update fighter states based on player role
                         if self.player_id == "player1":
-                            # For player1: Update health, hit state, and position if necessary
+                            # For player1: Only update health from server (in case of taking damage)
                             self.fighter_1.health = self.game_state["player1"]["health"]
                             self.fighter_1.hit = self.game_state["player1"]["hit"]
-                            
-                            # Reset position if needed (e.g., at round start)
-                            if self.intro_count > 0:
-                                self.fighter_1.rect.x = self.game_state["player1"]["x"]
-                                self.fighter_1.rect.y = self.game_state["player1"]["y"]
                             
                             # Update entire state of opponent
                             if "player2" in self.game_state:
@@ -224,14 +206,9 @@ class GameClient:
                                 self.fighter_2.hit = self.game_state["player2"]["hit"]
                                 
                         elif self.player_id == "player2":
-                            # For player2: Update health, hit state, and position if necessary
+                            # For player2: Only update health from server (in case of taking damage)
                             self.fighter_2.health = self.game_state["player2"]["health"]
                             self.fighter_2.hit = self.game_state["player2"]["hit"]
-                            
-                            # Reset position if needed (e.g., at round start)
-                            if self.intro_count > 0:
-                                self.fighter_2.rect.x = self.game_state["player2"]["x"]
-                                self.fighter_2.rect.y = self.game_state["player2"]["y"]
                             
                             # Update entire state of opponent
                             if "player1" in self.game_state:
@@ -260,29 +237,6 @@ class GameClient:
         print("Disconnected from server")
         self.connection_established = False
         self.running = False
-    
-    def reset_player_state(self):
-        """Reset player state at the beginning of a new round"""
-        if self.player_id == "player1":
-            self.fighter_1.rect.x = 200
-            self.fighter_1.rect.y = 310
-            self.fighter_1.health = 100
-            self.fighter_1.attacking = False
-            self.fighter_1.hit = False
-            self.fighter_1.action = 0
-            self.fighter_1.jump = False
-            self.fighter_1.jumping = False
-            self.fighter_1.attack_type = 0
-        elif self.player_id == "player2":
-            self.fighter_2.rect.x = 700
-            self.fighter_2.rect.y = 310
-            self.fighter_2.health = 100
-            self.fighter_2.attacking = False
-            self.fighter_2.hit = False
-            self.fighter_2.action = 0
-            self.fighter_2.jump = False
-            self.fighter_2.jumping = False
-            self.fighter_2.attack_type = 0
         
     def send_data(self, data):
         """Send data to server with error handling"""
@@ -292,8 +246,6 @@ class GameClient:
         try:
             serialized_data = pickle.dumps(data)
             self.client.send(serialized_data)
-            if self.debug_mode and "player_id" in data:
-                print(f"Sent data: {data}")
         except ConnectionResetError:
             print("Connection reset by server while sending data")
             self.connection_established = False
@@ -308,289 +260,263 @@ class GameClient:
         img = font.render(text, True, text_col)
         text_rect = img.get_rect(center=(x, y))
         self.screen.blit(img, text_rect)
+    
     def draw_left_aligned_text(self, text, font, text_col, x, y):
         """Draw left-aligned text"""
         img = font.render(text, True, text_col)
         self.screen.blit(img, (x, y))
     
+    def draw_bg(self):
+        """Draw background"""
+        scaled_bg = pygame.transform.scale(self.bg_image, (self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
+        self.screen.blit(scaled_bg, (0, 0))
+    
     def draw_health_bar(self, health, x, y):
         """Draw health bar"""
         ratio = health / 100
-        pygame.draw.rect(self.screen, self.BLACK, (x - 2, y - 2, 404, 34))
+        pygame.draw.rect(self.screen, self.WHITE, (x - 2, y - 2, 404, 34))
         pygame.draw.rect(self.screen, self.RED, (x, y, 400, 30))
-        pygame.draw.rect(self.screen, self.GREEN, (x, y, 400 * ratio, 30))
+        pygame.draw.rect(self.screen, self.YELLOW, (x, y, 400 * ratio, 30))
     
-    def draw_controls(self):
-        """Draw control instructions"""
-        if not self.show_controls:
+    def draw_controls_screen(self):
+        """Draw controls screen"""
+        # Draw dark translucent background
+        s = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
+        s.set_alpha(220)
+        s.fill(self.BLACK)
+        self.screen.blit(s, (0, 0))
+        
+        # Draw title
+        self.draw_text("KEYS TO PLAY", self.title_font, self.YELLOW, self.SCREEN_WIDTH // 2, 50)
+        
+        # Draw player 1 controls frame
+        pygame.draw.rect(self.screen, self.BLUE, (50, 120, 400, 350), 0)
+        pygame.draw.rect(self.screen, self.WHITE, (50, 120, 400, 350), 3)
+        
+        # Draw player 1 controls
+        self.draw_left_aligned_text("Player 1 (WARRIOR)", self.controls_font, self.WHITE, 75, 130)
+        self.draw_left_aligned_text("Left:         A", self.controls_font, self.WHITE, 75, 180)
+        self.draw_left_aligned_text("Right:        D", self.controls_font, self.WHITE, 75, 220)
+        self.draw_left_aligned_text("Up:           W", self.controls_font, self.WHITE, 75, 260)
+        self.draw_left_aligned_text("Attack 1:     R", self.controls_font, self.WHITE, 75, 300)
+        self.draw_left_aligned_text("Attack 2:     T", self.controls_font, self.WHITE, 75, 340)
+        self.draw_left_aligned_text("Attack 3:     Y", self.controls_font, self.WHITE, 75, 380)
+        
+        # Draw player 2 controls frame
+        pygame.draw.rect(self.screen, self.RED, (550, 120, 400, 350), 0)
+        pygame.draw.rect(self.screen, self.WHITE, (550, 120, 400, 350), 3)
+        
+        # Draw player 2 controls
+        self.draw_left_aligned_text("Player 2 (WIZARD)", self.controls_font, self.WHITE, 575, 130)
+        self.draw_left_aligned_text("Left:         ←", self.controls_font, self.WHITE, 575, 180)
+        self.draw_left_aligned_text("Right:        →", self.controls_font, self.WHITE, 575, 220)
+        self.draw_left_aligned_text("Up:           ↑", self.controls_font, self.WHITE, 575, 260)
+        self.draw_left_aligned_text("Attack 1:     J", self.controls_font, self.WHITE, 575, 300)
+        self.draw_left_aligned_text("Attack 2:     K", self.controls_font, self.WHITE, 575, 340)
+        self.draw_left_aligned_text("Attack 3:     L", self.controls_font, self.WHITE, 575, 380)
+        
+        # Display start prompt
+        self.draw_text("Press Space to continue", self.controls_font, self.GREEN, self.SCREEN_WIDTH // 2, 500)
+    
+    def waiting_screen(self):
+        """Show waiting for other player screen"""
+        # Draw dark translucent background
+        s = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
+        s.set_alpha(220)
+        s.fill(self.BLACK)
+        self.screen.blit(s, (0, 0))
+        
+        # Draw waiting message
+        self.draw_text("WAITING FOR OTHER PLAYER", self.title_font, self.YELLOW, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 50)
+        self.draw_text("Please wait...", self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 + 30)
+    
+    def connection_error_screen(self):
+        """Show connection error screen"""
+        # Draw dark background
+        s = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
+        s.set_alpha(255)
+        s.fill(self.BLACK)
+        self.screen.blit(s, (0, 0))
+        
+        # Draw error message
+        self.draw_text("CONNECTION ERROR", self.title_font, self.RED, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
+        self.draw_text(f"Could not connect to server at {self.server}:{self.port}", 
+                     self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 30)
+        
+        if self.connection_error:
+            # Split error message into multiple lines if needed
+            error_lines = [self.connection_error[i:i+50] for i in range(0, len(self.connection_error), 50)]
+            for i, line in enumerate(error_lines):
+                self.draw_text(line, self.controls_font, self.WHITE, 
+                              self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 + 10 + (i * 30))
+        
+        # Draw retry or exit options
+        self.draw_text("Press 'R' to retry or 'ESC' to exit", self.controls_font, 
+                     self.YELLOW, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 + 100)
+    
+    def send_player_state(self):
+        """Send current player state to server with rate limiting"""
+        current_time = pygame.time.get_ticks()
+        
+        # Only send updates at specified interval
+        if current_time - self.last_update_time < self.update_interval:
             return
             
-        title_text = "CONTROLS"
-        self.draw_text(title_text, self.title_font, self.WHITE, self.SCREEN_WIDTH // 2, 50)
+        self.last_update_time = current_time
         
-        y_pos = 120
-        controls = [
-            "WASD / Arrow Keys: Move",
-            "Z / J: Light Attack",
-            "X / K: Heavy Attack",
-            "C / L: Special Attack",
-            "Space: Ready Up",
-            "H: Toggle Controls"
-        ]
-        
-        for control in controls:
-            self.draw_text(control, self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2, y_pos)
-            y_pos += 40
+        if self.player_id == "player1":
+            self.send_data({
+                "player_id": self.player_id,
+                "x": self.fighter_1.rect.x,
+                "y": self.fighter_1.rect.y,
+                "health": self.fighter_1.health,
+                "action": self.fighter_1.action,
+                "frame_index": self.fighter_1.frame_index,
+                "flip": self.fighter_1.flip,
+                "attacking": self.fighter_1.attacking,
+                "hit": self.fighter_1.hit
+            })
+        elif self.player_id == "player2":
+            self.send_data({
+                "player_id": self.player_id,
+                "x": self.fighter_2.rect.x,
+                "y": self.fighter_2.rect.y,
+                "health": self.fighter_2.health,
+                "action": self.fighter_2.action,
+                "frame_index": self.fighter_2.frame_index,
+                "flip": self.fighter_2.flip,
+                "attacking": self.fighter_2.attacking,
+                "hit": self.fighter_2.hit
+            })
     
-    def draw_waiting_screen(self):
-        """Draw waiting for players screen"""
-        # Black background
-        self.screen.fill(self.BLACK)
-        
-        # Title
-        self.draw_text("BRAWLER GAME", self.title_font, self.RED, self.SCREEN_WIDTH // 2, 100)
-        
-        # Connection status
-        if self.connection_established:
-            if self.player_id:
-                status_text = f"Connected as {self.player_id}"
-                instruction_text = "Press SPACE to ready up!"
-                
-                # Draw status
-                self.draw_text(status_text, self.controls_font, self.GREEN, self.SCREEN_WIDTH // 2, 200)
-                self.draw_text(instruction_text, self.controls_font, self.YELLOW, self.SCREEN_WIDTH // 2, 250)
-                
-                # Draw number of players
-                if self.game_state:
-                    if len(self.game_state["scores"]) == 2:
-                        if self.game_state["game_active"]:
-                            status = "Game starting..."
-                        else:
-                            status = "Waiting for both players to ready up..."
-                    else:
-                        status = "Waiting for another player..."
-                    
-                    self.draw_text(status, self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2, 350)
-            else:
-                self.draw_text("Connecting to server...", self.controls_font, self.YELLOW, self.SCREEN_WIDTH // 2, 200)
-        else:
-            if self.connection_error:
-                self.draw_text("CONNECTION ERROR", self.game_over_font, self.RED, self.SCREEN_WIDTH // 2, 200)
-                self.draw_text(self.connection_error, self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2, 260)
-                self.draw_text("Press ESC to quit", self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2, 320)
-            else:
-                self.draw_text("Connecting to server...", self.controls_font, self.YELLOW, self.SCREEN_WIDTH // 2, 200)
-                self.draw_text(f"Attempt {self.connection_retry_count + 1}/{self.max_retries}", 
-                               self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2, 250)
-        
-        # Draw controls
-        self.draw_controls()
-    
-    def draw_game_screen(self):
-        """Draw the main game screen"""
-        # Draw background
-        scaled_bg = pygame.transform.scale(self.bg_image, (self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
-        self.screen.blit(scaled_bg, (0, 0))
-        
-        # Show player stats
-        self.draw_health_bar(self.fighter_1.health, 20, 20)
-        self.draw_health_bar(self.fighter_2.health, 580, 20)
-        self.draw_text(f"P1: {self.game_state['scores'][0]}", self.score_font, self.RED, 100, 60)
-        self.draw_text(f"P2: {self.game_state['scores'][1]}", self.score_font, self.RED, 900, 60)
-        
-        # Draw fighters
-        self.fighter_1.draw(self.screen)
-        self.fighter_2.draw(self.screen)
-        
-        # Draw countdown for new round
-        if self.intro_count > 0:
-            self.draw_text(str(self.intro_count), self.count_font, self.RED, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 3)
-        
-        # Draw round over message
-        if self.round_over:
-            if self.winner == 1:
-                text = "PLAYER 1 WINS!"
-                self.draw_text(text, self.game_over_font, self.BLUE, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 3)
-            elif self.winner == 2:
-                text = "PLAYER 2 WINS!"
-                self.draw_text(text, self.game_over_font, self.RED, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 3)
-        
-        # Draw game over message
-        if self.game_over:
-            self.screen.blit(self.victory_img, (self.SCREEN_WIDTH // 2 - 125, self.SCREEN_HEIGHT // 3 - 150))
-            if self.winner == 1:
-                text = "PLAYER 1 WINS THE MATCH!"
-                self.draw_text(text, self.game_over_font, self.BLUE, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 3 + 50)
-            elif self.winner == 2:
-                text = "PLAYER 2 WINS THE MATCH!"
-                self.draw_text(text, self.game_over_font, self.RED, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 3 + 50)
+    def process_input(self):
+        """Process player input"""
+        # Check if round is over or intro is still counting down
+        if self.game_state and (self.game_state["round_over"] or self.game_state["intro_count"] > 0):
+            # Don't process input during these states
+            return
             
-            # Give option to play again
-            self.draw_text("Press SPACE to restart", self.score_font, self.WHITE, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 + 100)
+        # Update fighter based on player_id
+        if self.player_id == "player1":
+            self.fighter_1.move(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.screen, self.fighter_2, False)
+        elif self.player_id == "player2":
+            self.fighter_2.move(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.screen, self.fighter_1, False)
         
-        # Draw debug info if enabled
-        if self.debug_mode:
-            if self.player_id == "player1":
-                debug_text = f"P1 pos: ({self.fighter_1.rect.x}, {self.fighter_1.rect.y}) | Action: {self.fighter_1.action}"
-                self.draw_left_aligned_text(debug_text, self.debug_font, self.WHITE, 10, self.SCREEN_HEIGHT - 40)
-            elif self.player_id == "player2":
-                debug_text = f"P2 pos: ({self.fighter_2.rect.x}, {self.fighter_2.rect.y}) | Action: {self.fighter_2.action}"
-                self.draw_left_aligned_text(debug_text, self.debug_font, self.WHITE, 10, self.SCREEN_HEIGHT - 40)
-            
-            network_text = f"Network: {'connected' if self.connection_established else 'disconnected'}"
-            self.draw_left_aligned_text(network_text, self.debug_font, self.GREEN if self.connection_established else self.RED, 
-                                      10, self.SCREEN_HEIGHT - 20)
-    
-    def handle_input(self):
-        """Handle player input"""
-        # Reset movement variables
-        SPEED = 5
-        dx = 0
-        dy = 0
-        
-        # Get keypresses
-        key = pygame.key.get_pressed()
-        
-        if not self.game_over and not self.round_over and self.game_state and self.game_state["game_active"] and self.intro_count <= 0:
-            # Check which fighter to control based on player_id
-            fighter = None
-            if self.player_id == "player1":
-                fighter = self.fighter_1
-            elif self.player_id == "player2":
-                fighter = self.fighter_2
-            
-            if not fighter:
-                return
-            
-            # Only allow control if not currently jumping or attacking
-            if not fighter.attacking and not fighter.jumping and not fighter.hit:
-                # Movement controls
-                if key[pygame.K_a] or key[pygame.K_LEFT]:
-                    dx = -SPEED
-                    fighter.flip = True
-                if key[pygame.K_d] or key[pygame.K_RIGHT]:
-                    dx = SPEED
-                    fighter.flip = False
-                if key[pygame.K_w] or key[pygame.K_UP]:
-                    fighter.jump = True
-                
-                # Attack controls
-                if key[pygame.K_z] or key[pygame.K_j]:  # Light attack
-                    fighter.attack(1)
-                    fighter.attack_type = 1
-                if key[pygame.K_x] or key[pygame.K_k]:  # Medium attack
-                    fighter.attack(2)
-                    fighter.attack_type = 2
-                if key[pygame.K_c] or key[pygame.K_l]:  # Heavy attack
-                    fighter.attack(3)
-                    fighter.attack_type = 3
-            
-            # Apply movement
-            fighter.move(dx, dy)
-            
-            # Update animation
-            fighter.update()
-            
-            # Send player state to server (throttled to avoid network flood)
-            current_time = pygame.time.get_ticks()
-            if current_time - self.last_update_time > self.update_interval:
-                self.last_update_time = current_time
-                
-                # Create state update to send to server
-                update_data = {
-                    "player_id": self.player_id,
-                    "x": fighter.rect.x,
-                    "y": fighter.rect.y,
-                    "health": fighter.health,
-                    "action": fighter.action,
-                    "frame_index": fighter.frame_index,
-                    "flip": fighter.flip,
-                    "attacking": fighter.attacking,
-                    "hit": fighter.hit
-                }
-                
-                self.send_data(update_data)
-        
-        # Handle space bar for ready up or restart
-        if key[pygame.K_SPACE]:
-            # Ready up if not already sent
-            if self.game_state and not self.game_state["game_active"]:
-                pygame.time.delay(200)  # Small delay to prevent multiple ready signals
-                self.send_data({"player_id": self.player_id, "status": "ready"})
-                print(f"{self.player_id} ready")
-        
-        # Toggle controls display
-        if key[pygame.K_h]:
-            pygame.time.delay(200)  # Small delay to prevent multiple toggles
-            self.show_controls = not self.show_controls
-            
-        # Toggle debug mode
-        if key[pygame.K_F1]:
-            pygame.time.delay(200)  # Small delay to prevent multiple toggles
-            self.debug_mode = not self.debug_mode
-            print(f"Debug mode: {'enabled' if self.debug_mode else 'disabled'}")
+        self.send_player_state()
     
     def run(self):
         """Main game loop"""
-        # Try to connect to server
-        if not self.connect():
-            print("Failed to connect to server")
-            self.connection_error = "Could not connect to server"
-        
-        # Main game loop
-        while self.running:
-            self.clock.tick(self.FPS)
+        while True:
+            # Attempt to connect if not connected
+            if not self.connection_established and self.connection_retry_count == 0:
+                if not self.connect():
+                    # Failed to connect
+                    pass
             
-            # Process events
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
+            # Game loop
+            while self.running:
+                self.clock.tick(self.FPS)
+                
+                # Process events
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
                         self.running = False
+                        pygame.quit()
+                        self.client.close()
+                        sys.exit()
+                
+                # Check connection status
+                if not self.connection_established:
+                    self.connection_error_screen()
+                    keys = pygame.key.get_pressed()
+                    if keys[pygame.K_r]:
+                        # Reset connection parameters
+                        self.connection_retry_count = 0
+                        break  # Break out of game loop to retry connection
+                    elif keys[pygame.K_ESCAPE]:
+                        pygame.quit()
+                        self.client.close()
+                        sys.exit()
+                else:
+                    # Draw background
+                    self.draw_bg()
+                    
+                    # Check if we're in control screen
+                    if self.show_controls:
+                        self.draw_controls_screen()
+                        key = pygame.key.get_pressed()
+                        if key[pygame.K_SPACE]:
+                            self.show_controls = False
+                            # Tell server we're ready
+                            self.send_data({"status": "ready", "player_id": self.player_id})
+                    else:
+                        # If we have game state and game is active
+                        if self.game_state and "game_active" in self.game_state:
+                            if not self.game_state["game_active"]:
+                                # Show waiting screen
+                                self.waiting_screen()
+                            else:
+                                # Update health bars
+                                if "player1" in self.game_state and "health" in self.game_state["player1"]:
+                                    self.draw_health_bar(self.game_state["player1"]["health"], 20, 20)
+                                if "player2" in self.game_state and "health" in self.game_state["player2"]:
+                                    self.draw_health_bar(self.game_state["player2"]["health"], 580, 20)
+                                
+                                # Update scores
+                                if "scores" in self.game_state:
+                                    self.draw_left_aligned_text("P1: " + str(self.game_state["scores"][0]), self.score_font, self.RED, 20, 60)
+                                    self.draw_left_aligned_text("P2: " + str(self.game_state["scores"][1]), self.score_font, self.RED, 580, 60)
+                                
+                                # Check if round is over
+                                if "round_over" in self.game_state and self.game_state["round_over"]:
+                                    # Display victory image
+                                    victory_rect = self.victory_img.get_rect(center=(self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 50))
+                                    self.screen.blit(self.victory_img, victory_rect)
+                                elif "intro_count" in self.game_state and self.game_state["intro_count"] > 0:
+                                    # Display count timer
+                                    self.draw_text(str(self.game_state["intro_count"]), self.count_font, self.RED, 
+                                                 self.SCREEN_WIDTH / 2, self.SCREEN_HEIGHT / 3)
+                                else:
+                                    # Process player input
+                                    self.process_input()
+                                
+                                # Check for game over
+                                if "game_over" in self.game_state and self.game_state["game_over"]:
+                                    # Display game over message
+                                    self.draw_text(f"PLAYER {self.game_state['winner']} WINS!", self.game_over_font, self.BLUE, 
+                                                 self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
+                                    self.draw_text("Waiting for server to restart...", self.score_font, self.WHITE, 
+                                                 self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2)
+                                
+                                # Update fighters
+                                self.fighter_1.update()
+                                self.fighter_2.update()
+                                
+                                # Draw fighters
+                                self.fighter_1.draw(self.screen)
+                                self.fighter_2.draw(self.screen)
+                        
+                        else:
+                            # Show waiting screen if no game state yet
+                            self.waiting_screen()
+                
+                # Update display
+                pygame.display.update()
             
-            # Handle player input
-            self.handle_input()
-            
-            # Draw appropriate screen
-            if not self.connection_established or not self.game_state or not self.game_state["game_active"]:
-                self.draw_waiting_screen()
-            else:
-                self.draw_game_screen()
-            
-            # Update display
-            pygame.display.update()
-        
-        # Cleanup and exit
-        self.cleanup()
-    
-    def cleanup(self):
-        """Clean up resources before exiting"""
+            # If we're exiting properly
+            if self.connection_retry_count >= self.max_retries:
+                break
+
+        # Clean up when done
+        pygame.quit()
         try:
-            if self.connection_established:
-                self.send_data({"player_id": self.player_id, "status": "disconnected"})
-                self.client.close()
+            self.client.close()
         except:
             pass
-            
-        pygame.quit()
-        print("Game closed")
+        sys.exit()
 
 if __name__ == "__main__":
-    # Default to localhost, but allow command-line override
-    host = 'localhost'
-    port = 5555
-    
-    # Check for command-line arguments
-    if len(sys.argv) > 1:
-        host = sys.argv[1]
-    if len(sys.argv) > 2:
-        try:
-            port = int(sys.argv[2])
-        except ValueError:
-            print(f"Invalid port number: {sys.argv[2]}, using default 5555")
-            port = 5555
-    
-    # Create and run game client
-    client = GameClient(host, port)
+    # Get server IP from command line or use localhost
+    server_ip = sys.argv[1] if len(sys.argv) > 1 else 'localhost'
+    client = GameClient(host=server_ip)
     client.run()

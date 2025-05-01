@@ -40,8 +40,7 @@ class GameServer:
             "intro_count": 5,       # Countdown at start of round
             "scores": [0, 0],       # Player scores
             "game_over": False,     # Game over state
-            "winner": 0,            # Winner of the game
-            "round_reset": False    # New flag to signal clients to reset
+            "winner": 0             # Winner of the game
         }
         
         # Thread safety
@@ -86,7 +85,7 @@ class GameServer:
                 try:
                     client_data = pickle.loads(data)
                     
-                    # Print received data for debugging (uncomment for troubleshooting)
+                    # Print received data for debugging (comment out in production)
                     # print(f"Received from {player_id}: {client_data}")
                     
                     # Process based on message type
@@ -102,29 +101,19 @@ class GameServer:
                                 self.game_state["intro_count"] = 5
                                 self.game_state["round_over"] = False
                                 self.game_state["game_over"] = False
-                                self.game_state["round_reset"] = False
                                 # Reset health
                                 self.game_state["player1"]["health"] = 100
-                                self.game_state["player1"]["attacking"] = False
-                                self.game_state["player1"]["hit"] = False
                                 self.game_state["player2"]["health"] = 100
-                                self.game_state["player2"]["attacking"] = False
-                                self.game_state["player2"]["hit"] = False
                             self.round_start_time = time.time()
                             self.last_count_update = self.round_start_time
                     
                     # Update player state if it's a player update
                     elif "player_id" in client_data and client_data["player_id"] == player_id:
                         with self.state_lock:
-                            # Check if we're in a valid state to accept updates
-                            if (self.game_state["game_active"] and 
-                                not self.game_state["round_over"] and 
-                                self.game_state["intro_count"] <= 0):
-                                
-                                # Update all received player attributes
-                                for key, value in client_data.items():
-                                    if key != "player_id" and key in self.game_state[player_id]:
-                                        self.game_state[player_id][key] = value
+                            # Update all received player attributes
+                            for key, value in client_data.items():
+                                if key != "player_id" and key in self.game_state[player_id]:
+                                    self.game_state[player_id][key] = value
                             
                         # Process any attack interactions
                         self.process_attack_interactions()
@@ -176,7 +165,6 @@ class GameServer:
                     # Hit detected
                     p2["health"] -= 10  # Damage amount
                     p2["hit"] = True
-                    print(f"Player 1 hit Player 2! P2 health: {p2['health']}")
                     
                     # Check for round end
                     if p2["health"] <= 0:
@@ -184,7 +172,6 @@ class GameServer:
                         self.game_state["round_over"] = True
                         self.game_state["scores"][0] += 1
                         self.round_over_time = time.time()
-                        print(f"Round over! Player 1 wins. Scores: {self.game_state['scores']}")
                     
             # Check if player 2 is attacking player 1
             if p2["attacking"] and not p1["hit"]:
@@ -196,7 +183,6 @@ class GameServer:
                     # Hit detected
                     p1["health"] -= 10  # Damage amount
                     p1["hit"] = True
-                    print(f"Player 2 hit Player 1! P1 health: {p1['health']}")
                     
                     # Check for round end
                     if p1["health"] <= 0:
@@ -204,17 +190,14 @@ class GameServer:
                         self.game_state["round_over"] = True
                         self.game_state["scores"][1] += 1
                         self.round_over_time = time.time()
-                        print(f"Round over! Player 2 wins. Scores: {self.game_state['scores']}")
             
             # Check for game over
             if self.game_state["scores"][0] >= self.WIN_SCORE:
                 self.game_state["game_over"] = True
                 self.game_state["winner"] = 1
-                print("Game over! Player 1 wins the match!")
             elif self.game_state["scores"][1] >= self.WIN_SCORE:
                 self.game_state["game_over"] = True
                 self.game_state["winner"] = 2
-                print("Game over! Player 2 wins the match!")
                 
     def update_game_state(self):
         """Update game state based on time"""
@@ -226,14 +209,10 @@ class GameServer:
                 if current_time - self.last_count_update >= 1.0:  # 1 second interval
                     self.game_state["intro_count"] -= 1
                     self.last_count_update = current_time
-                    print(f"Countdown: {self.game_state['intro_count']}")
             
             # Handle round over cooldown
             if self.game_state["round_over"] and not self.game_state["game_over"]:
                 if current_time - self.round_over_time >= 2.0:  # 2 second cooldown
-                    # Set round_reset flag before the next round starts
-                    self.game_state["round_reset"] = True
-                    
                     # Reset for next round
                     self.game_state["round_over"] = False
                     self.game_state["intro_count"] = 5
@@ -241,32 +220,17 @@ class GameServer:
                     self.game_state["player1"]["health"] = 100
                     self.game_state["player1"]["x"] = 200
                     self.game_state["player1"]["y"] = 310
-                    self.game_state["player1"]["action"] = 0
                     self.game_state["player1"]["attacking"] = False
                     self.game_state["player1"]["hit"] = False
                     
                     self.game_state["player2"]["health"] = 100
                     self.game_state["player2"]["x"] = 700
                     self.game_state["player2"]["y"] = 310
-                    self.game_state["player2"]["action"] = 0
                     self.game_state["player2"]["attacking"] = False
                     self.game_state["player2"]["hit"] = False
                     
                     self.round_start_time = current_time
                     self.last_count_update = current_time
-                    print("New round starting - player states reset")
-                    
-                    # Broadcast the reset state immediately
-                    self.broadcast_game_state()
-                    
-                    # Clear the reset flag after a short delay
-                    threading.Timer(0.5, self.clear_reset_flag).start()
-    
-    def clear_reset_flag(self):
-        """Clear the round reset flag after clients have processed it"""
-        with self.state_lock:
-            self.game_state["round_reset"] = False
-        print("Round reset flag cleared")
                     
     def broadcast_game_state(self):
         """Send current game state to all clients"""
