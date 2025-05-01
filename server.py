@@ -13,28 +13,33 @@ class GameServer:
         self.server.listen(2)  # Accept only 2 connections (2 players)
         print(f"Server running and listening on {host}:{port}")
         
+        # Initial player states for reset
+        self.initial_player1_state = {
+            "x": 200, 
+            "y": 310, 
+            "health": 100, 
+            "action": 0, 
+            "frame_index": 0,
+            "flip": False,
+            "attacking": False,
+            "hit": False
+        }
+        
+        self.initial_player2_state = {
+            "x": 700, 
+            "y": 310, 
+            "health": 100, 
+            "action": 0, 
+            "frame_index": 0,
+            "flip": True,
+            "attacking": False,
+            "hit": False
+        }
+        
         # Game state that matches client expectations
         self.game_state = {
-            "player1": {
-                "x": 200, 
-                "y": 310, 
-                "health": 100, 
-                "action": 0, 
-                "frame_index": 0,
-                "flip": False,
-                "attacking": False,
-                "hit": False
-            },
-            "player2": {
-                "x": 700, 
-                "y": 310, 
-                "health": 100, 
-                "action": 0, 
-                "frame_index": 0,
-                "flip": True,
-                "attacking": False,
-                "hit": False
-            },
+            "player1": dict(self.initial_player1_state),
+            "player2": dict(self.initial_player2_state),
             "game_active": False,   # Game starts when both players are ready
             "round_over": False,    # Round state
             "intro_count": 5,       # Countdown at start of round
@@ -54,6 +59,10 @@ class GameServer:
         self.last_count_update = 0
         self.round_over_time = 0
         self.WIN_SCORE = 5
+        
+        # Track last hit times for each player
+        self.last_hit_times = {"player1": 0, "player2": 0}
+        self.HIT_RESET_DELAY = 0.5  # Reset hit state after 0.5 seconds
         
     def handle_client(self, client, player_id):
         """Handle connection from a specific client"""
@@ -101,9 +110,9 @@ class GameServer:
                                 self.game_state["intro_count"] = 5
                                 self.game_state["round_over"] = False
                                 self.game_state["game_over"] = False
-                                # Reset health
-                                self.game_state["player1"]["health"] = 100
-                                self.game_state["player2"]["health"] = 100
+                                # Reset player states to initial values
+                                self.game_state["player1"] = dict(self.initial_player1_state)
+                                self.game_state["player2"] = dict(self.initial_player2_state)
                             self.round_start_time = time.time()
                             self.last_count_update = self.round_start_time
                     
@@ -147,12 +156,21 @@ class GameServer:
             
     def process_attack_interactions(self):
         """Process attack interactions between players"""
+        current_time = time.time()
+        
         with self.state_lock:
             if not self.game_state["game_active"] or self.game_state["round_over"]:
                 return
                 
             p1 = self.game_state["player1"]
             p2 = self.game_state["player2"]
+            
+            # Reset hit states if enough time has passed since last hit
+            if p1["hit"] and current_time - self.last_hit_times["player1"] >= self.HIT_RESET_DELAY:
+                p1["hit"] = False
+                
+            if p2["hit"] and current_time - self.last_hit_times["player2"] >= self.HIT_RESET_DELAY:
+                p2["hit"] = False
             
             # Check if player 1 is attacking player 2
             if p1["attacking"] and not p2["hit"]:
@@ -165,6 +183,7 @@ class GameServer:
                     # Hit detected
                     p2["health"] -= 10  # Damage amount
                     p2["hit"] = True
+                    self.last_hit_times["player2"] = current_time
                     
                     # Check for round end
                     if p2["health"] <= 0:
@@ -183,6 +202,7 @@ class GameServer:
                     # Hit detected
                     p1["health"] -= 10  # Damage amount
                     p1["hit"] = True
+                    self.last_hit_times["player1"] = current_time
                     
                     # Check for round end
                     if p1["health"] <= 0:
@@ -216,18 +236,10 @@ class GameServer:
                     # Reset for next round
                     self.game_state["round_over"] = False
                     self.game_state["intro_count"] = 5
-                    # Reset player states
-                    self.game_state["player1"]["health"] = 100
-                    self.game_state["player1"]["x"] = 200
-                    self.game_state["player1"]["y"] = 310
-                    self.game_state["player1"]["attacking"] = False
-                    self.game_state["player1"]["hit"] = False
                     
-                    self.game_state["player2"]["health"] = 100
-                    self.game_state["player2"]["x"] = 700
-                    self.game_state["player2"]["y"] = 310
-                    self.game_state["player2"]["attacking"] = False
-                    self.game_state["player2"]["hit"] = False
+                    # Reset player states completely by assigning fresh copies of initial states
+                    self.game_state["player1"] = dict(self.initial_player1_state)
+                    self.game_state["player2"] = dict(self.initial_player2_state)
                     
                     self.round_start_time = current_time
                     self.last_count_update = current_time

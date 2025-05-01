@@ -22,6 +22,9 @@ class GameClient:
         self.connection_retry_count = 0
         self.max_retries = 3
         
+        # Track previous round_over state to detect new rounds
+        self.was_round_over = False
+        
         # Initialize pygame and mixer
         mixer.init()
         pygame.init()
@@ -71,6 +74,12 @@ class GameClient:
         self.fighter_2 = Fighter(2, 700, 310, True, self.WIZARD_DATA, self.wizard_sheet, 
                                 [8, 8, 1, 8, 8, 3, 7], self.magic_fx)
         
+        # Store initial positions for resetting
+        self.fighter_1_initial_x = 200
+        self.fighter_1_initial_y = 310
+        self.fighter_2_initial_x = 700
+        self.fighter_2_initial_y = 310
+        
         # Network update rate (to prevent flooding the server)
         self.last_update_time = 0
         self.update_interval = 1000 / 30  # 30 updates per second
@@ -107,6 +116,26 @@ class GameClient:
             print(f"Error loading resources: {e}")
             pygame.quit()
             sys.exit()
+    
+    def reset_fighter_state(self, fighter, initial_x, initial_y):
+        """Reset a fighter to initial state for a new round"""
+        fighter.rect.x = initial_x
+        fighter.rect.y = initial_y
+        fighter.health = 100
+        fighter.alive = True
+        fighter.attacking = False
+        fighter.attack_type = 0
+        fighter.attack_cooldown = 0
+        fighter.hit = False
+        fighter.action = 0  # Idle action
+        fighter.frame_index = 0
+        fighter.velocity_y = 0
+        fighter.jump = False
+        fighter.in_air = False
+        fighter.attack_sound_played = False
+        
+        # Ensure fighter stops attacking
+        fighter.update_action(0)  # Set to idle
     
     def connect(self):
         """Connect to the server with retry mechanism"""
@@ -182,8 +211,21 @@ class GameClient:
                 
                 # Update local game state based on server data
                 if self.game_state and "game_active" in self.game_state:
-                    # Update game state variables
-                    self.round_over = self.game_state["round_over"]
+                    # Check for round state changes
+                    new_round_over = self.game_state["round_over"]
+                    
+                    # Detect round transitions (was over, now starting new round)
+                    if self.was_round_over and not new_round_over:
+                        print("New round starting - resetting local fighter state")
+                        # Reset local state for controlled fighter
+                        if self.player_id == "player1":
+                            self.reset_fighter_state(self.fighter_1, self.fighter_1_initial_x, self.fighter_1_initial_y)
+                        elif self.player_id == "player2":
+                            self.reset_fighter_state(self.fighter_2, self.fighter_2_initial_x, self.fighter_2_initial_y)
+                    
+                    # Update round state
+                    self.was_round_over = new_round_over
+                    self.round_over = new_round_over
                     self.game_over = self.game_state["game_over"]
                     self.winner = self.game_state["winner"]
                     
@@ -391,9 +433,15 @@ class GameClient:
     
     def process_input(self):
         """Process player input"""
-        # Check if round is over or intro is still counting down
-        if self.game_state and (self.game_state["round_over"] or self.game_state["intro_count"] > 0):
-            # Don't process input during these states
+        # Don't process input if:
+        # 1. No game state
+        # 2. Round is over
+        # 3. Intro is still counting down
+        # 4. Game is over
+        if (not self.game_state or 
+            self.game_state["round_over"] or 
+            self.game_state["intro_count"] > 0 or
+            self.game_state["game_over"]):
             return
             
         # Update fighter based on player_id
