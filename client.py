@@ -396,6 +396,38 @@ class GameClient:
         self.draw_text("Press 'R' to retry or 'ESC' to exit", self.controls_font, 
                      self.YELLOW, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 + 100)
     
+    def display_game_over_messages(self):
+        """Display victory or defeat message based on player ID and winner"""
+        if not self.game_state or "winner" not in self.game_state:
+            return
+            
+        winner = self.game_state["winner"]
+        
+        # Create a semi-transparent overlaya
+        overlay = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
+        overlay.set_alpha(180)
+        overlay.fill(self.BLACK)
+        self.screen.blit(overlay, (0, 0))
+        
+        # Check if this client is the winner
+        if (self.player_id == "player1" and winner == 1) or (self.player_id == "player2" and winner == 2):
+            # Display VICTORY for the winner
+            self.draw_text("VICTORY", self.game_over_font, self.GREEN, 
+                         self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
+            # Display the victory image
+            victory_rect = self.victory_img.get_rect(center=(self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2))
+            self.screen.blit(self.victory_img, victory_rect)
+        else:
+            # Display DEFEAT for the loser
+            self.draw_text("DEFEAT", self.game_over_font, self.RED, 
+                         self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
+        
+        # Display overall game result text
+        #self.draw_text(f"PLAYER {winner} WINS THE MATCH!", self.controls_font, self.YELLOW, 
+       #              self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 + 100)
+       # self.draw_text("Waiting for server to restart...", self.controls_font, self.WHITE, 
+       #              self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 + 150)
+    
     def send_player_state(self):
         """Send current player state to server with rate limiting"""
         current_time = pygame.time.get_ticks()
@@ -516,8 +548,8 @@ class GameClient:
                                     self.draw_left_aligned_text("P2: " + str(self.game_state["scores"][1]), self.score_font, self.RED, 580, 60)
                                 
                                 # Check if round is over
-                                if "round_over" in self.game_state and self.game_state["round_over"]:
-                                    # Display victory image
+                                if "round_over" in self.game_state and self.game_state["round_over"] and not self.game_state["game_over"]:
+                                    # Display victory image for round winner
                                     victory_rect = self.victory_img.get_rect(center=(self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 50))
                                     self.screen.blit(self.victory_img, victory_rect)
                                 elif "intro_count" in self.game_state and self.game_state["intro_count"] > 0:
@@ -528,14 +560,6 @@ class GameClient:
                                     # Process player input
                                     self.process_input()
                                 
-                                # Check for game over
-                                if "game_over" in self.game_state and self.game_state["game_over"]:
-                                    # Display game over message
-                                    self.draw_text(f"PLAYER {self.game_state['winner']} WINS!", self.game_over_font, self.BLUE, 
-                                                 self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
-                                    self.draw_text("Waiting for server to restart...", self.score_font, self.WHITE, 
-                                                 self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2)
-                                
                                 # Update fighters
                                 self.fighter_1.update()
                                 self.fighter_2.update()
@@ -543,6 +567,11 @@ class GameClient:
                                 # Draw fighters
                                 self.fighter_1.draw(self.screen)
                                 self.fighter_2.draw(self.screen)
+                                
+                                # Check for game over
+                                if "game_over" in self.game_state and self.game_state["game_over"]:
+                                    # Display custom victory/defeat message based on player
+                                    self.display_game_over_messages()
                         
                         else:
                             # Show waiting screen if no game state yet
