@@ -24,7 +24,8 @@ class GameServer:
             "attacking": False,
             "hit": False
         }
-        
+        # Player 2 state is flipped horizontally
+        # Adjust initial position and flip for player 2
         self.initial_player2_state = {
             "x": 700, 
             "y": 310, 
@@ -45,12 +46,13 @@ class GameServer:
             "intro_count": 5,       # Countdown at start of round
             "scores": [0, 0],       # Player scores
             "game_over": False,     # Game over state
-            "winner": 0,   
-            "chat_messages": []     # Winner of the game
+            "winner": 0,   ## Winner ID (1 or 2)
+
+            "chat_messages": []     ## List to store chat messages
         }
         
         # Thread safety
-        self.state_lock = threading.Lock()
+        self.state_lock = threading.Lock() ## Lock for game state updates
         
         self.clients = []
         self.player_ids = {}  # Map socket to player ID
@@ -64,7 +66,9 @@ class GameServer:
         # Track last hit times for each player
         self.last_hit_times = {"player1": 0, "player2": 0}
         self.HIT_RESET_DELAY = 0.5  # Reset hit state after 0.5 seconds
-        
+        ## Cooldown time after round over
+
+
     def handle_client(self, client, player_id):
         """Handle connection from a specific client"""
         try:
@@ -189,7 +193,7 @@ class GameServer:
                 
                 if p1_right > p2_left and p1["y"] - 50 < p2["y"] + 50 and p1["y"] + 50 > p2["y"] - 50:
                     # Hit detected
-                    p2["health"] -= 10  # Damage amount
+                    p2["health"] -= 5 # Damage amount
                     p2["hit"] = True
                     self.last_hit_times["player2"] = current_time
                     
@@ -208,7 +212,7 @@ class GameServer:
                 
                 if p2_left < p1_right and p2["y"] - 50 < p1["y"] + 50 and p2["y"] + 50 > p1["y"] - 50:
                     # Hit detected
-                    p1["health"] -= 10  # Damage amount
+                    p1["health"] -= 5  # Damage amount
                     p1["hit"] = True
                     self.last_hit_times["player1"] = current_time
                     
@@ -255,11 +259,11 @@ class GameServer:
     def broadcast_game_state(self):
         """Send current game state to all clients"""
         with self.state_lock:
-            serialized_state = pickle.dumps(self.game_state)
+            serialized_state = pickle.dumps(self.game_state) # Serialize the game state
             
         for client in self.clients[:]:  # Copy the list to avoid modification during iteration
             try:
-                client.send(serialized_state)
+                client.send(serialized_state) # Send the serialized game state to each client
             except Exception as e:
                 print(f"Error sending to client: {e}")
                 # Don't remove here to avoid modifying the list during iteration
@@ -287,7 +291,7 @@ class GameServer:
         try:
             # Start the game loop in a separate thread
             game_thread = threading.Thread(target=self.game_loop)
-            game_thread.daemon = True
+            game_thread.daemon = True # Daemonize thread to exit when main program exits
             game_thread.start()
             
             print("Waiting for players to connect...")
@@ -299,7 +303,7 @@ class GameServer:
                     print(f"Connection from {addr}")
                     
                     # Set client socket options
-                    client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                    client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1) #Tắt chế độ Nagle (TCP_NODELAY), giúp giảm độ trễ khi gửi dữ liệu qua mạng.
                     
                     # Check if we can accept more players
                     if len(self.clients) < 2:

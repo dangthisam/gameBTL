@@ -11,25 +11,27 @@ from fighter import Fighter
 class GameClient:
     def __init__(self, host='localhost', port=5555):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server = host
-        self.port = port
-        self.addr = (self.server, self.port)
-        self.player_id = None
-        self.game_state = None
-        self.running = True
-        self.connection_established = False
-        self.connection_error = None
-        self.connection_retry_count = 0
-        self.max_retries = 3
+        self.server = host # Server address
+        self.port = port # Server port
+        self.addr = (self.server, self.port) # Server address tuple
+        self.player_id = None # Player ID (player1 or player2)
+        self.game_state = None # Game state received from server
+        self.running = True  # Main game loop flag
+        self.connection_established = False  # Connection status flag
+        self.connection_error = None # Connection error message
+        self.connection_retry_count = 0 # Number of connection attempts
+        self.max_retries = 3  # Maximum number of connection attempts
+
+        ## Chat variables
         self.chat_messages = []  # Danh sách tin nhắn
         self.chat_input = ""  # Tin nhắn đang nhập
         self.chat_active = False  # Trạng thái nhập tin nhắn
-        self.max_chat_messages = 1  # Số tin nhắn tối đa hiển thị trên màn hình
+        self.max_chat_messages = 5 # Số tin nhắn tối đa hiển thị trên màn hình
 
-
+            ## Chat message display control
         self.show_chat_messages = False      # Control chat messages visibility
         self.chat_display_timer = 0          # Timer for chat messages display
-        self.CHAT_DISPLAY_DURATION = 2000
+        self.CHAT_DISPLAY_DURATION = 2000 # Duration to display chat messages (in milliseconds)
         # Track previous round_over state to detect new rounds
         self.was_round_over = False
         
@@ -55,13 +57,13 @@ class GameClient:
         self.GREEN = (0, 255, 0)
         
         # Game variables
-        self.intro_count = 5
-        self.last_count_update = pygame.time.get_ticks()
-        self.round_over = False
-        self.ROUND_OVER_COOLDOWN = 2000
-        self.game_over = False
-        self.WIN_SCORE = 5
-        self.winner = 0
+        self.intro_count = 5 # Countdown for intro
+        self.last_count_update = pygame.time.get_ticks() # Last time count was updated
+        self.round_over = False # Round over flag
+        self.ROUND_OVER_COOLDOWN = 2000 # Cooldown time for round over state
+        self.game_over = False # Game over flag
+        self.WIN_SCORE = 5 # Score needed to win the game
+        self.winner = 0 # Winner ID (1 or 2)
         self.show_controls = True
         
         # Fighter variables
@@ -75,7 +77,7 @@ class GameClient:
         self.WIZARD_DATA = [self.WIZARD_SIZE, self.WIZARD_SCALE, self.WIZARD_OFFSET]
         
         # Load resources
-        self.load_resources()
+        self.load_resources() # Load game resources
         
         # Create fighters
         self.fighter_1 = Fighter(1, 200, 310, False, self.WARRIOR_DATA, self.warrior_sheet, 
@@ -97,13 +99,13 @@ class GameClient:
         """Load game resources"""
         try:
             # Load music and sounds
-            pygame.mixer.music.load("assets/audio/ok.mp3")
-            pygame.mixer.music.set_volume(1)
-            pygame.mixer.music.play(-1, 0.0, 5000)
-            self.sword_fx = pygame.mixer.Sound("assets/audio/sword.wav")
-            self.sword_fx.set_volume(0.5)
-            self.magic_fx = pygame.mixer.Sound("assets/audio/magic.wav")
-            self.magic_fx.set_volume(0.75)
+            pygame.mixer.music.load("assets/audio/ok.mp3") # Load background music
+            pygame.mixer.music.set_volume(1) # Set volume
+            pygame.mixer.music.play(-1, 0.0, 5000) # Loop music indefinitely
+            self.sword_fx = pygame.mixer.Sound("assets/audio/sword.wav") # Load sword sound effect
+            self.sword_fx.set_volume(0.5) # Set volume
+            self.magic_fx = pygame.mixer.Sound("assets/audio/magic.wav") # Load magic sound effect
+            self.magic_fx.set_volume(0.75) # Set volume
             
             # Load background image
             self.bg_image = pygame.image.load("assets/images/background/background.jpg").convert_alpha()
@@ -116,11 +118,11 @@ class GameClient:
             self.victory_img = pygame.image.load("assets/images/icons/victory.png").convert_alpha()
             
             # Define fonts
-            self.count_font = pygame.font.Font("assets/fonts/turok.ttf", 80)
-            self.score_font = pygame.font.Font("assets/fonts/turok.ttf", 30)
-            self.game_over_font = pygame.font.Font("assets/fonts/turok.ttf", 50)
-            self.controls_font = pygame.font.Font("assets/fonts/turok.ttf", 25)
-            self.title_font = pygame.font.Font("assets/fonts/turok.ttf", 40)
+            self.count_font = pygame.font.Font("assets/fonts/Black Magnet.ttf", 80)
+            self.score_font = pygame.font.Font("assets/fonts/Black Magnet.ttf", 30)
+            self.game_over_font = pygame.font.Font("assets/fonts/Black Magnet.ttf", 50)
+            self.controls_font = pygame.font.Font("assets/fonts/Black Magnet.ttf", 25)
+            self.title_font = pygame.font.Font("assets/fonts/Black Magnet.ttf", 40)
         except Exception as e:
             print(f"Error loading resources: {e}")
             pygame.quit()
@@ -148,7 +150,7 @@ class GameClient:
     
     def connect(self):
         """Connect to the server with retry mechanism"""
-        while self.connection_retry_count < self.max_retries and not self.connection_established:
+        while self.connection_retry_count < self.max_retries and not self.connection_established: ## Retry connection
             try:
                 print(f"Attempting to connect to server at {self.addr} (Attempt {self.connection_retry_count + 1}/{self.max_retries})")
                 
@@ -166,7 +168,7 @@ class GameClient:
                 if not data:
                     raise Exception("No data received from server")
                     
-                response = pickle.loads(data)
+                response = pickle.loads(data) # Unpickle the response
                 
                 if "error" in response:
                     raise Exception(f"Server error: {response['error']}")
@@ -179,9 +181,9 @@ class GameClient:
                 
                 # Start receiving data from server
                 self.connection_established = True
-                receive_thread = threading.Thread(target=self.receive_data)
-                receive_thread.daemon = True
-                receive_thread.start()
+                receive_thread = threading.Thread(target=self.receive_data) # Create a thread for receiving data
+                receive_thread.daemon = True # Daemonize thread to exit when main program exits
+                receive_thread.start() # Start the thread
                 
                 # Connection successful
                 return True
@@ -189,16 +191,16 @@ class GameClient:
             except Exception as e:
                 self.connection_error = str(e)
                 print(f"Connection error: {e}")
-                self.connection_retry_count += 1
+                self.connection_retry_count += 1 # Increment retry count
                 
                 # Close socket and create a new one for retry
                 try:
-                    self.client.close()
+                    self.client.close() # Close the socket
                 except:
                     pass
                     
-                self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                time.sleep(1)
+                self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # Recreate socket
+                time.sleep(1) # Wait before retrying connection
         
         # If we've exhausted our retries
         if not self.connection_established:
@@ -209,14 +211,14 @@ class GameClient:
         """Continuously receive data from server"""
         self.client.settimeout(5)  # Set timeout to detect disconnection
         
-        while self.running:
+        while self.running: ## Keep receiving data until the game is over or connection is lost
             try:
-                data = self.client.recv(4096)
+                data = self.client.recv(4096) # Receive data from server
                 if not data:
                     print("Server disconnected (no data)")
                     break
                     
-                self.game_state = pickle.loads(data)
+                self.game_state = pickle.loads(data) # Unpickle the received data
                 
                 # Update local game state based on server data
                 if self.game_state and "game_active" in self.game_state:
@@ -226,6 +228,7 @@ class GameClient:
                         self.chat_messages = self.game_state["chat_messages"]
                         self.show_chat_messages = True
                         self.chat_display_timer = pygame.time.get_ticks()
+                        
                     # Check for round state changes
                     new_round_over = self.game_state["round_over"]
                     
@@ -301,8 +304,8 @@ class GameClient:
             return
             
         try:
-            serialized_data = pickle.dumps(data)
-            self.client.send(serialized_data)
+            serialized_data = pickle.dumps(data) # Serialize data
+            self.client.send(serialized_data) # Send data to server
         except ConnectionResetError:
             print("Connection reset by server while sending data")
             self.connection_established = False
@@ -314,33 +317,33 @@ class GameClient:
     
     def draw_text(self, text, font, text_col, x, y):
         """Draw text on screen"""
-        img = font.render(text, True, text_col)
-        text_rect = img.get_rect(center=(x, y))
-        self.screen.blit(img, text_rect)
+        img = font.render(text, True, text_col) # Render text
+        text_rect = img.get_rect(center=(x, y)) # Get text rectangle
+        self.screen.blit(img, text_rect) # Blit text on screen
     
-    def draw_left_aligned_text(self, text, font, text_col, x, y):
+    def draw_left_aligned_text(self, text, font, text_col, x, y): # x, y are top-left corner coordinates
         """Draw left-aligned text"""
-        img = font.render(text, True, text_col)
-        self.screen.blit(img, (x, y))
-    
+        img = font.render(text, True, text_col) # Render text
+        self.screen.blit(img, (x, y)) # Blit text on screen
+     
     def draw_bg(self):
         """Draw background"""
-        scaled_bg = pygame.transform.scale(self.bg_image, (self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
-        self.screen.blit(scaled_bg, (0, 0))
+        scaled_bg = pygame.transform.scale(self.bg_image, (self.SCREEN_WIDTH, self.SCREEN_HEIGHT)) # Scale background image
+        self.screen.blit(scaled_bg, (0, 0)) # Blit background on screen
     
     def draw_health_bar(self, health, x, y):
         """Draw health bar"""
-        ratio = health / 100
-        pygame.draw.rect(self.screen, self.WHITE, (x - 2, y - 2, 404, 34))
-        pygame.draw.rect(self.screen, self.RED, (x, y, 400, 30))
-        pygame.draw.rect(self.screen, self.YELLOW, (x, y, 400 * ratio, 30))
+        ratio = health / 100 # Calculate health ratio
+        pygame.draw.rect(self.screen, self.WHITE, (x - 2, y - 2, 404, 34)) # Draw border
+        pygame.draw.rect(self.screen, self.RED, (x, y, 400, 30)) # Draw red background
+        pygame.draw.rect(self.screen, self.YELLOW, (x, y, 400 * ratio, 30)) # Draw yellow foreground based on health ratio
     
     def draw_controls_screen(self):
         """Draw controls screen"""
         # Draw dark translucent background
-        s = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
-        s.set_alpha(220)
-        s.fill(self.BLACK)
+        s = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT)) # Create a surface for the background
+        s.set_alpha(220) # Set alpha for transparency
+        s.fill(self.BLACK) 
         self.screen.blit(s, (0, 0))
         
         # Draw title
@@ -373,10 +376,10 @@ class GameClient:
         self.draw_left_aligned_text("Attack 3:     L", self.controls_font, self.WHITE, 575, 380)
         
         # Add chat control instructions
-        self.draw_left_aligned_text("Chat:         C", self.controls_font, self.GREEN, 75, 420)
+        self.draw_left_aligned_text("Chat:         C", self.controls_font, self.GREEN, 75, 420) # Chat control
         
         # Display start prompt
-        self.draw_text("Press Space to continue", self.controls_font, self.GREEN, self.SCREEN_WIDTH // 2, 500)
+        self.draw_text("Press Space to continue", self.controls_font, self.GREEN, self.SCREEN_WIDTH // 2, 500) # Prompt to start game
     
     def waiting_screen(self):
         """Show waiting for other player screen"""
@@ -393,10 +396,10 @@ class GameClient:
     def connection_error_screen(self):
         """Show connection error screen"""
         # Draw dark background
-        s = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
-        s.set_alpha(255)
-        s.fill(self.BLACK)
-        self.screen.blit(s, (0, 0))
+        s = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT)) # Create a surface for the background
+        s.set_alpha(255) # Set alpha for transparency
+        s.fill(self.BLACK) # Fill with black color
+        self.screen.blit(s, (0, 0)) # Blit the surface on the screen
         
         # Draw error message
         self.draw_text("CONNECTION ERROR", self.title_font, self.RED, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
@@ -413,10 +416,10 @@ class GameClient:
         # Draw retry or exit options
         self.draw_text("Press 'R' to retry or 'ESC' to exit", self.controls_font, 
                      self.YELLOW, self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 + 100)
-    
+    #def display_victory_message(self):
     def display_game_over_messages(self):
         """Display victory or defeat message based on player ID and winner"""
-        if not self.game_state or "winner" not in self.game_state:
+        if not self.game_state or "winner" not in self.game_state: # Check if game state is valid
             return
             
         winner = self.game_state["winner"]
@@ -479,7 +482,7 @@ class GameClient:
             return
             
         # Handle events
-        for event in pygame.event.get():
+        for event in pygame.event.get(): # trả về danh sách các sự kiện đã xảy ra (như nhấn phím, di chuyển chuột, đóng cửa sổ, v.v.).
             if event.type == pygame.QUIT:
                 self.running = False
                 pygame.quit()
@@ -487,6 +490,7 @@ class GameClient:
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
                 # Toggle chat with C key
+                # on/off chat input with C key
                 if event.key == pygame.K_c:
                     self.chat_active = not self.chat_active
                     if not self.chat_active:
@@ -518,7 +522,7 @@ class GameClient:
         current_time = pygame.time.get_ticks()
         
         # Only send updates at specified interval
-        if current_time - self.last_update_time < self.update_interval:
+        if current_time - self.last_update_time < self.update_interval: #Xác định khoảng thời gian tối thiểu giữa hai lần gửi dữ liệu, giúp giảm tải cho server và tiết kiệm băng thông.
             return
             
         self.last_update_time = current_time
@@ -636,7 +640,7 @@ class GameClient:
                                # Display chat messages
                                 if self.chat_messages and self.show_chat_messages:
                                     # Create a semi-transparent background for chat area
-                                    chat_bg = pygame.Surface((500, 150))
+                                    chat_bg = pygame.Surface((300, 100))
                                     chat_bg.set_alpha(150)
                                     chat_bg.fill(self.BLACK)
                                     self.screen.blit(chat_bg, (250, 430))
@@ -646,14 +650,16 @@ class GameClient:
                                     for i, msg in enumerate(recent_messages):
                                         # Determine message color based on player
                                         if msg.startswith("player1:"):
-                                            msg_color = self.BLUE
+                                            msg_color = self.WHITE
                                         elif msg.startswith("player2:"):
-                                            msg_color = self.RED
+                                            msg_color = self.WHITE
                                         else:
                                             msg_color = self.WHITE
                                         
                                         # Draw message text
-                                        self.draw_left_aligned_text(msg, self.controls_font, msg_color, 260, 440 + i * 25)
+                                        input_text=pygame.font.SysFont(None, 30).render(msg, True, msg_color)
+                                        self.screen.blit(input_text, (260, 440 + i * 25))
+                                        #self.draw_left_aligned_text(msg, self.controls_font, msg_color, 260, 440 + i * 25)
                                 
                                 # Display chat input if active
                                 if self.chat_active:
@@ -665,7 +671,9 @@ class GameClient:
                                     
                                     # Draw chat input text
                                     input_text = f"Chat: {self.chat_input}"
-                                    self.draw_left_aligned_text(input_text, self.controls_font, self.GREEN, 110, 395)
+                                    # Render input text without applying font
+                                    input_surface = pygame.font.SysFont(None, 30).render(input_text, True, self.WHITE)
+                                    self.screen.blit(input_surface, (110, 395))
                                     
                                     # Draw blinking cursor
                                     if pygame.time.get_ticks() % 1000 < 500:  # Blink every half second
