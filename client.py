@@ -24,11 +24,16 @@ class GameClient:
         self.chat_messages = []  # Danh sách tin nhắn
         self.chat_input = ""  # Tin nhắn đang nhập
         self.chat_active = False  # Trạng thái nhập tin nhắn
-        self.max_chat_messages = 5  # Số tin nhắn tối đa hiển thị trên màn hình
-        
+        self.max_chat_messages = 1  # Số tin nhắn tối đa hiển thị trên màn hình
+
+
+        self.show_chat_messages = False      # Control chat messages visibility
+        self.chat_display_timer = 0          # Timer for chat messages display
+        self.CHAT_DISPLAY_DURATION = 2000
         # Track previous round_over state to detect new rounds
         self.was_round_over = False
         
+    
         # Initialize pygame and mixer
         mixer.init()
         pygame.init()
@@ -217,7 +222,10 @@ class GameClient:
                 if self.game_state and "game_active" in self.game_state:
                     # Check for chat messages
                     if "chat_messages" in self.game_state:
+                       if self.chat_messages != self.game_state["chat_messages"]:
                         self.chat_messages = self.game_state["chat_messages"]
+                        self.show_chat_messages = True
+                        self.chat_display_timer = pygame.time.get_ticks()
                     # Check for round state changes
                     new_round_over = self.game_state["round_over"]
                     
@@ -618,10 +626,15 @@ class GameClient:
                                 if "game_over" in self.game_state and self.game_state["game_over"]:
                                     # Display custom victory/defeat message based on player
                                     self.display_game_over_messages()
+                                # Check if chat messages should still be displayed
+                                if self.show_chat_messages:
+                                    current_time = pygame.time.get_ticks()
+                                    if current_time - self.chat_display_timer >= self.CHAT_DISPLAY_DURATION:
+                                     self.show_chat_messages = False
                                 
                                 # Display chat messages
                                # Display chat messages
-                                if self.chat_messages:
+                                if self.chat_messages and self.show_chat_messages:
                                     # Create a semi-transparent background for chat area
                                     chat_bg = pygame.Surface((500, 150))
                                     chat_bg.set_alpha(150)
