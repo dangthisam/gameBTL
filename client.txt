@@ -1,0 +1,759 @@
+def modify_client_for_chat():
+    # 1. Thêm biến và phím tắt để kích hoạt chế độ chat
+    # 2. Thêm hàm để hiển thị hộp chat và tin nhắn
+    # 3. Sửa đổi phần xử lý đầu vào để xử lý nhập chat
+    # 4. Thêm logic để gửi và nhận tin nhắn chat
+
+
+
+import socket
+import pickle
+import threading
+import pygame
+from pygame import mixer
+import sys
+import time
+
+from fighter import Fighter
+
+class GameClient:
+    def __init__(self, host='localhost', port=5555):
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server = host
+        self.port = port
+        self.addr = (self.server, self.port)
+        self.player_id = None
+        self.game_state = None
+        self.running = True
+        self.connection_established = False
+        self.connection_error = None
+        self.connection_retry_count = 0
+        self.max_retries = 3
+        
+        # Track previous round_over state to detect new rounds
+        self.was_round_over = False
+        
+        # Initialize pygame and mixer
+        mixer.init()
+        pygame.init()
+        
+        # Game window setup
+        self.SCREEN_WIDTH = 1000
+        self.SCREEN_HEIGHT = 600
+        self.screen = pygame.display.set_mode((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
+        pygame.display.set_caption("Brawler Game - Network Edition")
+        self.clock = pygame.time.Clock()
+        self.FPS = 60
+        
+        # Colors
+        self.RED = (255, 0, 0)
+        self.YELLOW = (255, 255, 0)
+        self.WHITE = (255, 255, 255)
+        self.BLUE = (0, 0, 255)
+        self.BLACK = (0, 0, 0)
+        self.GREEN = (0, 255, 0)
+        self.GRAY = (128, 128, 128)
+        self.SEMI_TRANSPARENT_BLACK = (0, 0, 0, 160)
+        
+        # Game variables
+        self.intro_count = 5
+        self.last_count_update = pygame.time.get_ticks()
+        self.round_over = False
+        self.ROUND_OVER_COOLDOWN = 2000
+        self.game_over = False
+        self.WIN_SCORE = 5
+        self.winner = 0
+        self.show_controls = True
+        
+        # Chat variables
+        self.chat_active = False
+        self.chat_message = ""
+        self.chat_cursor_visible = True
+        self.chat_cursor_timer = 0
+        self.CHAT_CURSOR_BLINK_INTERVAL = 500  # 500ms
+        self.chat_messages = []
+        self.chat_box_height = 200
+        self.chat_input_height = 40
+        self.chat_notification_timer = 0
+        self.max_chat_message_length = 50  # Maximum characters in a chat message
+        
+        # Fighter variables
+        self.WARRIOR_SIZE = 162
+        self.WARRIOR_SCALE = 4
+        self.WARRIOR_OFFSET = [72, 56]
+        self.WARRIOR_DATA = [self.WARRIOR_SIZE, self.WARRIOR_SCALE, self.WARRIOR_OFFSET]
+        self.WIZARD_SIZE = 250
+        self.WIZARD_SCALE = 3
+        self.WIZARD_OFFSET = [112, 107]
+        self.WIZARD_DATA = [self.WIZARD_SIZE, self.WIZARD_SCALE, self.WIZARD_OFFSET]
+        
+        # Load resources
+        self.load_resources()
+        
+        # Create fighters
+        self.fighter_1 = Fighter(1, 200, 310, False, self.WARRIOR_DATA, self.warrior_sheet, 
+                                [10, 8, 1, 7, 7, 3, 7], self.sword_fx)
+        self.fighter_2 = Fighter(2, 700, 310, True, self.WIZARD_DATA, self.wizard_sheet, 
+                                [8, 8, 1, 8, 8, 3, 7], self.magic_fx)
+        
+        # Store initial positions for resetting
+        self.fighter_1_initial_x = 200
+        self.fighter_1_initial_y = 310
+        self.fighter_2_initial_x = 700
+        self.fighter_2_initial_y = 310
+        
+        # Network update rate (to prevent flooding the server)
+        self.last_update_time = 0
+        self.update_interval = 1000 / 30  # 30 updates per second
+        
+    def load_resources(self):
+        """Load game resources"""
+        try:
+            # Load music and sounds
+            pygame.mixer.music.load("assets/audio/ok.mp3")
+            pygame.mixer.music.set_volume(1)
+            pygame.mixer.music.play(-1, 0.0, 5000)
+            self.sword_fx = pygame.mixer.Sound("assets/audio/sword.wav")
+            self.sword_fx.set_volume(0.5)
+            self.magic_fx = pygame.mixer.Sound("assets/audio/magic.wav")
+            self.magic_fx.set_volume(0.75)
+            
+            # Load notification sound for chat
+            try:
+                self.chat_notification_fx = pygame.mixer.Sound("assets/audio/notification.wav")
+                self.chat_notification_fx.set_volume(0.7)
+            except:
+                # If notification sound is not available, use an existing sound
+                self.chat_notification_fx = self.magic_fx
+            
+            # Load background image
+            self.bg_image = pygame.image.load("assets/images/background/background.jpg").convert_alpha()
+            
+            # Load spritesheets
+            self.warrior_sheet = pygame.image.load("assets/images/warrior/Sprites/warrior.png").convert_alpha()
+            self.wizard_sheet = pygame.image.load("assets/images/wizard/Sprites/wizard.png").convert_alpha()
+            
+            # Load victory image
+            self.victory_img = pygame.image.load("assets/images/icons/victory.png").convert_alpha()
+            
+            # Define fonts
+            self.count_font = pygame.font.Font("assets/fonts/turok.ttf", 80)
+            self.score_font = pygame.font.Font("assets/fonts/turok.ttf", 30)
+            self.game_over_font = pygame.font.Font("assets/fonts/turok.ttf", 50)
+            self.controls_font = pygame.font.Font("assets/fonts/turok.ttf", 25)
+            self.title_font = pygame.font.Font("assets/fonts/turok.ttf", 40)
+            self.chat_font = pygame.font.Font("assets/fonts/turok.ttf", 20)
+        except Exception as e:
+            print(f"Error loading resources: {e}")
+            pygame.quit()
+            sys.exit()
+    
+    def reset_fighter_state(self, fighter, initial_x, initial_y):
+        """Reset a fighter to initial state for a new round"""
+        fighter.rect.x = initial_x
+        fighter.rect.y = initial_y
+        fighter.health = 100
+        fighter.alive = True
+        fighter.attacking = False
+        fighter.attack_type = 0
+        fighter.attack_cooldown = 0
+        fighter.hit = False
+        fighter.action = 0  # Idle action
+        fighter.frame_index = 0
+        fighter.velocity_y = 0
+        fighter.jump = False
+        fighter.in_air = False
+        fighter.attack_sound_played = False
+        
+        # Ensure fighter stops attacking
+        fighter.update_action(0)  # Set to idle
+    
+    def connect(self):
+        """Connect to the server with retry mechanism"""
+        while self.connection_retry_count < self.max_retries and not self.connection_established:
+            try:
+                print(f"Attempting to connect to server at {self.addr} (Attempt {self.connection_retry_count + 1}/{self.max_retries})")
+                
+                # Set socket timeout for connection
+                self.client.settimeout(5)
+                self.client.connect(self.addr)
+                
+                # Reset timeout to None (blocking mode) for normal operation
+                self.client.settimeout(None)
+                
+                print(f"Connected to server at {self.addr}")
+                
+                # Receive player ID from server
+                data = self.client.recv(4096)
+                if not data:
+                    raise Exception("No data received from server")
+                    
+                response = pickle.loads(data)
+                
+                if "error" in response:
+                    raise Exception(f"Server error: {response['error']}")
+                
+                self.player_id = response["player_id"]
+                print(f"You are {self.player_id}")
+                
+                # Send initial confirmation to server
+                self.send_data({"player_id": self.player_id, "status": "connected"})
+                
+                # Start receiving data from server
+                self.connection_established = True
+                receive_thread = threading.Thread(target=self.receive_data)
+                receive_thread.daemon = True
+                receive_thread.start()
+                
+                # Connection successful
+                return True
+                
+            except Exception as e:
+                self.connection_error = str(e)
+                print(f"Connection error: {e}")
+                self.connection_retry_count += 1
+                
+                # Close socket and create a new one for retry
+                try:
+                    self.client.close()
+                except:
+                    pass
+                    
+                self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                time.sleep(1)
+        
+        # If we've exhausted our retries
+        if not self.connection_established:
+            print("Failed to connect to server after multiple attempts")
+            return False
+    
+    def receive_data(self):
+        """Continuously receive data from server"""
+        self.client.settimeout(5)  # Set timeout to detect disconnection
+        
+        while self.running:
+            try:
+                data = self.client.recv(4096)
+                if not data:
+                    print("Server disconnected (no data)")
+                    break
+                    
+                self.game_state = pickle.loads(data)
+                
+                # Update local game state based on server data
+                if self.game_state and "game_active" in self.game_state:
+                    # Check for round state changes
+                    new_round_over = self.game_state["round_over"]
+                    
+                    # Detect round transitions (was over, now starting new round)
+                    if self.was_round_over and not new_round_over:
+                        print("New round starting - resetting local fighter state")
+                        # Reset local state for controlled fighter
+                        if self.player_id == "player1":
+                            self.reset_fighter_state(self.fighter_1, self.fighter_1_initial_x, self.fighter_1_initial_y)
+                        elif self.player_id == "player2":
+                            self.reset_fighter_state(self.fighter_2, self.fighter_2_initial_x, self.fighter_2_initial_y)
+                    
+                    # Update round state
+                    self.was_round_over = new_round_over
+                    self.round_over = new_round_over
+                    self.game_over = self.game_state["game_over"]
+                    self.winner = self.game_state["winner"]
+                    
+                    # Process chat messages from server
+                    if "chat_messages" in self.game_state:
+                        # Check if there are new messages
+                        if len(self.game_state["chat_messages"]) > len(self.chat_messages):
+                            # Get the new messages
+                            new_messages = self.game_state["chat_messages"][len(self.chat_messages):]
+                            for msg in new_messages:
+                                # Only play notification sound for messages from the other player
+                                if msg["sender"] != self.player_id and not self.chat_active:
+                                    # Play notification sound
+                                    try:
+                                        self.chat_notification_fx.play()
+                                    except:
+                                        pass
+                                    # Set notification timer
+                                    self.chat_notification_timer = 3000  # 3 seconds
+                            
+                            # Update local chat messages
+                            self.chat_messages = self.game_state["chat_messages"][:]
+                    
+                    if self.game_state["game_active"]:
+                        # Update fighter states based on player role
+                        if self.player_id == "player1":
+                            # For player1: Only update health from server (in case of taking damage)
+                            self.fighter_1.health = self.game_state["player1"]["health"]
+                            self.fighter_1.hit = self.game_state["player1"]["hit"]
+                            
+                            # Update entire state of opponent
+                            if "player2" in self.game_state:
+                                self.fighter_2.rect.x = self.game_state["player2"]["x"]
+                                self.fighter_2.rect.y = self.game_state["player2"]["y"]
+                                self.fighter_2.health = self.game_state["player2"]["health"]
+                                self.fighter_2.action = self.game_state["player2"]["action"]
+                                self.fighter_2.frame_index = self.game_state["player2"]["frame_index"]
+                                self.fighter_2.attacking = self.game_state["player2"]["attacking"]
+                                self.fighter_2.hit = self.game_state["player2"]["hit"]
+                                self.fighter_2.flip = self.game_state["player2"]["flip"]
+                                
+                        elif self.player_id == "player2":
+                            # For player2: Only update health from server (in case of taking damage)
+                            self.fighter_2.health = self.game_state["player2"]["health"]
+                            self.fighter_2.hit = self.game_state["player2"]["hit"]
+                            
+                            # Update entire state of opponent
+                            if "player1" in self.game_state:
+                                self.fighter_1.rect.x = self.game_state["player1"]["x"]
+                                self.fighter_1.rect.y = self.game_state["player1"]["y"]
+                                self.fighter_1.health = self.game_state["player1"]["health"]
+                                self.fighter_1.action = self.game_state["player1"]["action"]
+                                self.fighter_1.frame_index = self.game_state["player1"]["frame_index"]
+                                self.fighter_1.attacking = self.game_state["player1"]["attacking"]
+                                self.fighter_1.hit = self.game_state["player1"]["hit"]
+                                self.fighter_1.flip = self.game_state["player1"]["flip"]
+            
+            except socket.timeout:
+                # This is normal for timeout, just continue
+                continue
+            except ConnectionResetError:
+                print("Connection reset by server")
+                break
+            except Exception as e:
+                print(f"Error receiving data: {e}")
+                break
+                
+        # If we break out of the loop, we're disconnected
+        print("Disconnected from server")
+        self.connection_established = False
+                
+    def send_data(self, data):
+        """Send data to server"""
+        try:
+            self.client.send(pickle.dumps(data))
+            return True
+        except Exception as e:
+            print(f"Error sending data: {e}")
+            return False
+            
+    def send_player_state(self):
+        """Send controlled player's state to server"""
+        if not self.connection_established:
+            return False
+            
+        # Only send updates at controlled rate
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_update_time < self.update_interval:
+            return False
+            
+        self.last_update_time = current_time
+        
+        # Create data packet based on player role
+        data = {"player_id": self.player_id}
+        
+        # Add player-specific state
+        if self.player_id == "player1":
+            data.update({
+                "x": self.fighter_1.rect.x,
+                "y": self.fighter_1.rect.y,
+                "health": self.fighter_1.health,
+                "action": self.fighter_1.action, 
+                "frame_index": self.fighter_1.frame_index,
+                "flip": self.fighter_1.flip,
+                "attacking": self.fighter_1.attacking,
+                "hit": self.fighter_1.hit
+            })
+        elif self.player_id == "player2":
+            data.update({
+                "x": self.fighter_2.rect.x,
+                "y": self.fighter_2.rect.y,
+                "health": self.fighter_2.health,
+                "action": self.fighter_2.action, 
+                "frame_index": self.fighter_2.frame_index,
+                "flip": self.fighter_2.flip,
+                "attacking": self.fighter_2.attacking,
+                "hit": self.fighter_2.hit
+            })
+        
+        # Send data to server
+        return self.send_data(data)
+        
+    def send_ready_state(self):
+        """Send ready signal to server"""
+        if not self.connection_established:
+            return False
+            
+        return self.send_data({"player_id": self.player_id, "status": "ready"})
+        
+    def send_chat_message(self, message):
+        """Send chat message to server"""
+        if not self.connection_established or not message:
+            return False
+            
+        chat_data = {
+            "player_id": self.player_id,
+            "chat_message": {
+                "message": message
+            }
+        }
+        
+        return self.send_data(chat_data)
+        
+    def draw_text(self, text, font, text_col, x, y):
+        """Draw text on screen"""
+        img = font.render(text, True, text_col)
+        self.screen.blit(img, (x, y))
+        
+    def draw_health_bar(self, health, x, y):
+        """Draw health bar for fighters"""
+        ratio = health / 100
+        pygame.draw.rect(self.screen, self.WHITE, (x - 2, y - 2, 404, 34))
+        pygame.draw.rect(self.screen, self.RED, (x, y, 400, 30))
+        pygame.draw.rect(self.screen, self.GREEN, (x, y, 400 * ratio, 30))
+        
+    def draw_countdown(self):
+        """Draw countdown at start of round"""
+        if self.game_state and "intro_count" in self.game_state and self.game_state["intro_count"] > 0:
+            # Show countdown
+            count_text = str(self.game_state["intro_count"])
+            count_img = self.count_font.render(count_text, True, self.RED)
+            self.screen.blit(count_img, (self.SCREEN_WIDTH // 2 - 30, self.SCREEN_HEIGHT // 3))
+        
+    def draw_scores(self):
+        """Draw player scores on screen"""
+        if self.game_state and "scores" in self.game_state:
+            # Draw score bars
+            p1_score_img = self.score_font.render(f"P1: {self.game_state['scores'][0]}", True, self.WHITE)
+            p2_score_img = self.score_font.render(f"P2: {self.game_state['scores'][1]}", True, self.WHITE)
+            self.screen.blit(p1_score_img, (20, 60))
+            self.screen.blit(p2_score_img, (self.SCREEN_WIDTH - 120, 60))
+        
+    def draw_game_over(self):
+        """Draw game over screen"""
+        # Display winner
+        if self.winner == 1:
+            winner_text = "Player 1 Wins!"
+            winner_color = self.BLUE
+        else:
+            winner_text = "Player 2 Wins!"
+            winner_color = self.RED
+            
+        img = self.game_over_font.render(winner_text, True, winner_color)
+        self.screen.blit(img, (self.SCREEN_WIDTH // 2 - 150, self.SCREEN_HEIGHT // 3))
+        
+        # Display victory image
+        self.screen.blit(self.victory_img, (self.SCREEN_WIDTH // 2 - 150, self.SCREEN_HEIGHT // 3 + 80))
+        
+        # Display restart instructions
+        restart_text = "Press SPACE to play again"
+        img = self.score_font.render(restart_text, True, self.WHITE)
+        self.screen.blit(img, (self.SCREEN_WIDTH // 2 - 170, self.SCREEN_HEIGHT // 3 + 250))
+    
+    def draw_controls(self):
+        """Draw control instructions"""
+        if self.show_controls and self.player_id:
+            # Create semi-transparent background
+            controls_surface = pygame.Surface((550, 230))
+            controls_surface.set_alpha(200)
+            controls_surface.fill(self.BLACK)
+            self.screen.blit(controls_surface, (self.SCREEN_WIDTH // 2 - 275, 150))
+            
+            # Draw title
+            self.draw_text("Controls", self.title_font, self.WHITE, self.SCREEN_WIDTH // 2 - 80, 160)
+            
+            # Control instructions based on player
+            if self.player_id == "player1":
+                self.draw_text("A/D - Move Left/Right", self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2 - 250, 220)
+                self.draw_text("W - Jump", self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2 - 250, 250)
+                self.draw_text("E/R - Attack", self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2 - 250, 280)
+            else:
+                self.draw_text("LEFT/RIGHT - Move Left/Right", self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2 - 250, 220)
+                self.draw_text("UP - Jump", self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2 - 250, 250)
+                self.draw_text("KP1/KP2 - Attack", self.controls_font, self.WHITE, self.SCREEN_WIDTH // 2 - 250, 280)
+            
+            # Common controls
+            self.draw_text("T - Toggle Chat", self.controls_font, self.YELLOW, self.SCREEN_WIDTH // 2 - 250, 310)
+            self.draw_text("SPACE - Ready/Restart", self.controls_font, self.YELLOW, self.SCREEN_WIDTH // 2 - 250, 340)
+            self.draw_text("ESC - Hide Controls", self.controls_font, self.YELLOW, self.SCREEN_WIDTH // 2 - 250, 370)
+    
+    def draw_chat_notification(self):
+        """Draw chat notification when there are new messages"""
+        if self.chat_notification_timer > 0:
+            # Draw notification
+            notification_text = "New message! Press T to open chat"
+            img = self.controls_font.render(notification_text, True, self.YELLOW)
+            self.screen.blit(img, (self.SCREEN_WIDTH // 2 - 175, 50))
+            
+            # Decrease timer
+            self.chat_notification_timer -= self.clock.get_time()
+    
+    def draw_chat_box(self):
+        """Draw chat interface if active"""
+        if self.chat_active:
+            # Draw chat box background
+            chat_box_y = self.SCREEN_HEIGHT - self.chat_box_height
+            
+            # Main chat box
+            chat_surface = pygame.Surface((self.SCREEN_WIDTH, self.chat_box_height))
+            chat_surface.set_alpha(220)
+            chat_surface.fill(self.BLACK)
+            self.screen.blit(chat_surface, (0, chat_box_y))
+            
+            # Draw chat messages (scrollable)
+            message_height = 25
+            visible_messages = min(6, len(self.chat_messages))  # Show up to 6 messages
+            
+            # Show most recent messages
+            start_idx = max(0, len(self.chat_messages) - visible_messages)
+            
+            for i in range(start_idx, len(self.chat_messages)):
+                msg_idx = i - start_idx
+                msg = self.chat_messages[i]
+                
+                # Format message with sender prefix
+                prefix = "You: " if msg["sender"] == self.player_id else "Opponent: "
+                chat_text = prefix + msg["message"]
+                
+                # Truncate if too long
+                if len(chat_text) > 60:
+                    chat_text = chat_text[:57] + "..."
+                
+                # Draw message
+                color = self.BLUE if msg["sender"] == "player1" else self.RED
+                self.draw_text(chat_text, self.chat_font, color, 20, chat_box_y + 10 + msg_idx * message_height)
+            
+            # Draw input area background
+            input_y = self.SCREEN_HEIGHT - self.chat_input_height
+            input_surface = pygame.Surface((self.SCREEN_WIDTH, self.chat_input_height))
+            input_surface.set_alpha(255)
+            input_surface.fill(self.GRAY)
+            self.screen.blit(input_surface, (0, input_y))
+            
+            # Draw input text with cursor
+            input_text = self.chat_message
+            if self.chat_cursor_visible:
+                input_text += "|"
+            self.draw_text(input_text, self.chat_font, self.WHITE, 20, input_y + 10)
+            
+            # Draw instructions
+            instruction_text = "ENTER to send, ESC to close"
+            self.draw_text(instruction_text, self.chat_font, self.WHITE, 
+                          self.SCREEN_WIDTH - 300, input_y + 10)
+            
+            # Update cursor blink
+            self.chat_cursor_timer += self.clock.get_time()
+            if self.chat_cursor_timer >= self.CHAT_CURSOR_BLINK_INTERVAL:
+                self.chat_cursor_visible = not self.chat_cursor_visible
+                self.chat_cursor_timer = 0
+    
+    def handle_chat_input(self, event):
+        """Handle input for chat mode"""
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                # Exit chat mode
+                self.chat_active = False
+                
+            elif event.key == pygame.K_RETURN:
+                # Send message if not empty
+                if self.chat_message.strip():
+                    # Send message to server
+                    self.send_chat_message(self.chat_message.strip())
+                    # Clear input
+                    self.chat_message = ""
+                
+            elif event.key == pygame.K_BACKSPACE:
+                # Remove character
+                self.chat_message = self.chat_message[:-1]
+                
+            else:
+                # Add character if it's a printable key and not too long
+                if len(self.chat_message) < self.max_chat_message_length and event.unicode.isprintable():
+                    self.chat_message += event.unicode
+    
+    def handle_game_keys(self):
+        """Handle keyboard input for game controls"""
+        key = pygame.key.get_pressed()
+        
+        # Reset attacking variables
+        self.fighter_1.attacking = False
+        self.fighter_2.attacking = False
+        
+        # Check if in chat mode
+        if self.chat_active:
+            return
+            
+        if self.player_id == "player1":
+            # Player 1 controls
+            if key[pygame.K_a]:
+                self.fighter_1.move(-1)
+                self.send_player_state()
+            if key[pygame.K_d]:
+                self.fighter_1.move(1)
+                self.send_player_state()
+            
+            # Jump
+            if key[pygame.K_w] and not self.fighter_1.in_air:
+                self.fighter_1.jump = True
+                self.send_player_state()
+            
+            # Attack
+            if key[pygame.K_e] or key[pygame.K_r]:
+                if key[pygame.K_e]:
+                    attack_type = 1  # light attack
+                elif key[pygame.K_r]:
+                    attack_type = 2  # heavy attack
+                
+                self.fighter_1.attack(attack_type)
+                self.send_player_state()
+                
+        elif self.player_id == "player2":
+            # Player 2 controls
+            if key[pygame.K_LEFT]:
+                self.fighter_2.move(-1)
+                self.send_player_state()
+            if key[pygame.K_RIGHT]:
+                self.fighter_2.move(1)
+                self.send_player_state()
+            
+            # Jump
+            if key[pygame.K_UP] and not self.fighter_2.in_air:
+                self.fighter_2.jump = True
+                self.send_player_state()
+            
+            # Attack keys
+            if key[pygame.K_KP1] or key[pygame.K_KP2]:
+                if key[pygame.K_KP1]:
+                    attack_type = 1  # light attack
+                elif key[pygame.K_KP2]:
+                    attack_type = 2  # heavy attack
+                
+                self.fighter_2.attack(attack_type)
+                self.send_player_state()
+    
+    def run(self):
+        """Main game loop"""
+        # Connect to server
+        if not self.connect():
+            print("Failed to connect to server")
+            return
+            
+        # Main game loop
+        while self.running:
+            # Cap the frame rate
+            self.clock.tick(self.FPS)
+            
+            # Process events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+                
+                # Handle keyboard events
+                if event.type == pygame.KEYDOWN:
+                    # Toggle chat with T key
+                    if event.key == pygame.K_t and not self.chat_active:
+                        self.chat_active = True
+                        self.chat_notification_timer = 0  # Clear any notification
+                        
+                    # Toggle controls display
+                    elif event.key == pygame.K_ESCAPE and not self.chat_active:
+                        self.show_controls = not self.show_controls
+                        
+                    # Ready/Restart game with spacebar
+                    elif event.key == pygame.K_SPACE and not self.chat_active:
+                        if self.game_over:
+                            # Reset scores and game state
+                            self.game_over = False
+                            if self.player_id == "player1":
+                                self.reset_fighter_state(self.fighter_1, self.fighter_1_initial_x, self.fighter_1_initial_y)
+                            elif self.player_id == "player2":
+                                self.reset_fighter_state(self.fighter_2, self.fighter_2_initial_x, self.fighter_2_initial_y)
+                        
+                        print("Sending ready state to server")
+                        self.send_ready_state()
+            
+            # Handle chat input if active
+            if self.chat_active:
+                for event in pygame.event.get():
+                    if event.type == pygame.KEYDOWN:
+                        self.handle_chat_input(event)
+                
+            # Draw background
+            self.screen.blit(self.bg_image, (0, 0))
+            
+            # Show waiting message if game not active
+            if not self.game_state or not self.game_state.get("game_active", False):
+                # Show waiting screen
+                waiting_text = "Waiting for opponent..."
+                ready_text = "Press SPACE when ready"
+                self.draw_text(waiting_text, self.title_font, self.WHITE, self.SCREEN_WIDTH // 2 - 200, self.SCREEN_HEIGHT // 3)
+                self.draw_text(ready_text, self.score_font, self.YELLOW, self.SCREEN_WIDTH // 2 - 150, self.SCREEN_HEIGHT // 3 + 80)
+                
+                # Draw controls info
+                if self.show_controls:
+                    self.draw_controls()
+            else:
+                # Check if fighter update is needed
+                if self.game_state and not self.round_over and self.game_state["intro_count"] == 0:
+                    # Handle keyboard input for movement
+                    self.handle_game_keys()
+                    
+                    # Update fighters
+                    self.fighter_1.update()
+                    self.fighter_2.update()
+                    
+                    # Update server with local fighter's state
+                    if not self.chat_active and pygame.time.get_ticks() - self.last_update_time >= self.update_interval:
+                        self.send_player_state()
+                        self.last_update_time = pygame.time.get_ticks()
+                
+                # Draw fighters
+                self.fighter_1.draw(self.screen)
+                self.fighter_2.draw(self.screen)
+                
+                # Draw UI elements
+                self.draw_health_bar(self.fighter_1.health, 20, 20)
+                self.draw_health_bar(self.fighter_2.health, 580, 20)
+                self.draw_scores()
+                
+                # Draw countdown if needed
+                if self.game_state and self.game_state.get("intro_count", 0) > 0:
+                    self.draw_countdown()
+                    
+                # Draw game over screen if game is over
+                if self.game_over:
+                    self.draw_game_over()
+            
+            # Draw controls if enabled
+            if self.show_controls:
+                self.draw_controls()
+                
+            # Draw chat notification if needed
+            if not self.chat_active and self.chat_notification_timer > 0:
+                self.draw_chat_notification()
+                
+            # Draw chat box if active
+            if self.chat_active:
+                self.draw_chat_box()
+            
+            # Update display
+            pygame.display.update()
+        
+        # Clean up when game exits
+        self.running = False
+        pygame.quit()
+        try:
+            self.client.close()
+        except:
+            pass
+        print("Game client closed")
+
+if __name__ == "__main__":
+    # Allow command-line IP parameter
+    if len(sys.argv) > 1:
+        server_ip = sys.argv[1]
+    else:
+        server_ip = "localhost"
+    
+    client = GameClient(server_ip)
+    client.run()

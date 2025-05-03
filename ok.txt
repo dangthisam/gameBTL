@@ -22,6 +22,9 @@ class GameClient:
         self.connection_retry_count = 0
         self.max_retries = 3
         
+        # Track previous round_over state to detect new rounds
+        self.was_round_over = False
+        
         # Initialize pygame and mixer
         mixer.init()
         pygame.init()
@@ -51,7 +54,10 @@ class GameClient:
         self.WIN_SCORE = 5
         self.winner = 0
         self.show_controls = True
-        self.local_player_control = True  # Flag to ensure player controls are responsive
+        
+        # New variables for restart option
+        self.voted_for_restart = False
+        self.showing_restart_options = False
         
         # Fighter variables
         self.WARRIOR_SIZE = 162
@@ -72,10 +78,15 @@ class GameClient:
         self.fighter_2 = Fighter(2, 700, 310, True, self.WIZARD_DATA, self.wizard_sheet, 
                                 [8, 8, 1, 8, 8, 3, 7], self.magic_fx)
         
+        # Store initial positions for resetting
+        self.fighter_1_initial_x = 200
+        self.fighter_1_initial_y = 310
+        self.fighter_2_initial_x = 700
+        self.fighter_2_initial_y = 310
+        
         # Network update rate (to prevent flooding the server)
         self.last_update_time = 0
         self.update_interval = 1000 / 30  # 30 updates per second
-        self.debug_mode = False  # Toggle for debug information
         
     def load_resources(self):
         """Load game resources"""
@@ -105,11 +116,30 @@ class GameClient:
             self.game_over_font = pygame.font.Font("assets/fonts/turok.ttf", 50)
             self.controls_font = pygame.font.Font("assets/fonts/turok.ttf", 25)
             self.title_font = pygame.font.Font("assets/fonts/turok.ttf", 40)
-            self.debug_font = pygame.font.Font("assets/fonts/turok.ttf", 16)
         except Exception as e:
             print(f"Error loading resources: {e}")
             pygame.quit()
             sys.exit()
+    
+    def reset_fighter_state(self, fighter, initial_x, initial_y):
+        """Reset a fighter to initial state for a new round"""
+        fighter.rect.x = initial_x
+        fighter.rect.y = initial_y
+        fighter.health = 100
+        fighter.alive = True
+        fighter.attacking = False
+        fighter.attack_type = 0
+        fighter.attack_cooldown = 0
+        fighter.hit = False
+        fighter.action = 0  # Idle action
+        fighter.frame_index = 0
+        fighter.velocity_y = 0
+        fighter.jump = False
+        fighter.in_air = False
+        fighter.attack_sound_played = False
+        
+        # Ensure fighter stops attacking
+        fighter.update_action(0)  # Set to idle
     
     def connect(self):
         """Connect to the server with retry mechanism"""
@@ -183,34 +213,36 @@ class GameClient:
                     
                 self.game_state = pickle.loads(data)
                 
-                # Debug: Print entire game state occasionally
-                if self.debug_mode:
-                    print(f"Received game state: {self.game_state}")
-                
                 # Update local game state based on server data
                 if self.game_state and "game_active" in self.game_state:
-                    # Handle round reset signal from server
-                    if "round_reset" in self.game_state and self.game_state["round_reset"]:
-                        print("Received round reset signal - resetting local player state")
-                        self.reset_player_state()
+                    # Check for round state changes
+                    new_round_over = self.game_state["round_over"]
                     
-                    # Update game state variables
-                    self.round_over = self.game_state["round_over"]
+                    # Detect round transitions (was over, now starting new round)
+                    if self.was_round_over and not new_round_over:
+                        print("New round starting - resetting local fighter state")
+                        # Reset local state for controlled fighter
+                        if self.player_id == "player1":
+                            self.reset_fighter_state(self.fighter_1, self.fighter_1_initial_x, self.fighter_1_initial_y)
+                        elif self.player_id == "player2":
+                            self.reset_fighter_state(self.fighter_2, self.fighter_2_initial_x, self.fighter_2_initial_y)
+                    
+                    # Update round state
+                    self.was_round_over = new_round_over
+                    self.round_over = new_round_over
                     self.game_over = self.game_state["game_over"]
                     self.winner = self.game_state["winner"]
-                    self.intro_count = self.game_state["intro_count"]
+                    
+                    # If game over, show restart options
+                    if self.game_over and not self.showing_restart_options:
+                        self.showing_restart_options = True
                     
                     if self.game_state["game_active"]:
                         # Update fighter states based on player role
                         if self.player_id == "player1":
-                            # For player1: Update health, hit state, and position if necessary
+                            # For player1: Only update health from server (in case of taking damage)
                             self.fighter_1.health = self.game_state["player1"]["health"]
                             self.fighter_1.hit = self.game_state["player1"]["hit"]
-                            
-                            # Reset position if needed (e.g., at round start)
-                            if self.intro_count > 0:
-                                self.fighter_1.rect.x = self.game_state["player1"]["x"]
-                                self.fighter_1.rect.y = self.game_state["player1"]["y"]
                             
                             # Update entire state of opponent
                             if "player2" in self.game_state:
@@ -224,14 +256,9 @@ class GameClient:
                                 self.fighter_2.hit = self.game_state["player2"]["hit"]
                                 
                         elif self.player_id == "player2":
-                            # For player2: Update health, hit state, and position if necessary
+                            # For player2: Only update health from server (in case of taking damage)
                             self.fighter_2.health = self.game_state["player2"]["health"]
                             self.fighter_2.hit = self.game_state["player2"]["hit"]
-                            
-                            # Reset position if needed (e.g., at round start)
-                            if self.intro_count > 0:
-                                self.fighter_2.rect.x = self.game_state["player2"]["x"]
-                                self.fighter_2.rect.y = self.game_state["player2"]["y"]
                             
                             # Update entire state of opponent
                             if "player1" in self.game_state:
@@ -260,29 +287,6 @@ class GameClient:
         print("Disconnected from server")
         self.connection_established = False
         self.running = False
-    
-    def reset_player_state(self):
-        """Reset player state at the beginning of a new round"""
-        if self.player_id == "player1":
-            self.fighter_1.rect.x = 200
-            self.fighter_1.rect.y = 310
-            self.fighter_1.health = 100
-            self.fighter_1.attacking = False
-            self.fighter_1.hit = False
-            self.fighter_1.action = 0
-            self.fighter_1.jump = False
-            self.fighter_1.jumping = False
-            self.fighter_1.attack_type = 0
-        elif self.player_id == "player2":
-            self.fighter_2.rect.x = 700
-            self.fighter_2.rect.y = 310
-            self.fighter_2.health = 100
-            self.fighter_2.attacking = False
-            self.fighter_2.hit = False
-            self.fighter_2.action = 0
-            self.fighter_2.jump = False
-            self.fighter_2.jumping = False
-            self.fighter_2.attack_type = 0
         
     def send_data(self, data):
         """Send data to server with error handling"""
@@ -292,24 +296,9 @@ class GameClient:
         try:
             serialized_data = pickle.dumps(data)
             self.client.send(serialized_data)
-            if self.debug_mode and "player_id" in data:
-                print(f"Sent data: {data}")
         except ConnectionResetError:
             print("Connection reset by server while sending data")
             self.connection_established = False
             self.running = False
         except Exception as e:
-            print(f"Error sending data: {e}")
-            self.connection_established = False
-            self.running = False
-    
-    def draw_text(self, text, font, text_col, x, y):
-        """Draw text on screen"""
-        img = font.render(text, True, text_col)
-        text_rect = img.get_rect(center=(x, y))
-        self.screen.blit(img, text_rect)
-    
-    def draw_left_aligned_text(self, text, font, text_col, x, y):
-        """Draw left-aligned text"""
-        img = font.render(text, True, text_col)
-        self.
+            print(f"Error sending data:

@@ -21,6 +21,10 @@ class GameClient:
         self.connection_error = None
         self.connection_retry_count = 0
         self.max_retries = 3
+        self.chat_messages = []  # Danh sách tin nhắn
+        self.chat_input = ""  # Tin nhắn đang nhập
+        self.chat_active = False  # Trạng thái nhập tin nhắn
+        self.max_chat_messages = 5  # Số tin nhắn tối đa hiển thị trên màn hình
         
         # Track previous round_over state to detect new rounds
         self.was_round_over = False
@@ -211,6 +215,9 @@ class GameClient:
                 
                 # Update local game state based on server data
                 if self.game_state and "game_active" in self.game_state:
+                    # Check for chat messages
+                    if "chat_messages" in self.game_state:
+                        self.chat_messages = self.game_state["chat_messages"]
                     # Check for round state changes
                     new_round_over = self.game_state["round_over"]
                     
@@ -350,12 +357,15 @@ class GameClient:
         
         # Draw player 2 controls
         self.draw_left_aligned_text("Player 2 (WIZARD)", self.controls_font, self.WHITE, 575, 130)
-        self.draw_left_aligned_text("Left:         ←", self.controls_font, self.WHITE, 575, 180)
-        self.draw_left_aligned_text("Right:        →", self.controls_font, self.WHITE, 575, 220)
-        self.draw_left_aligned_text("Up:           ↑", self.controls_font, self.WHITE, 575, 260)
+        self.draw_left_aligned_text("Left:         <---", self.controls_font, self.WHITE, 575, 180)
+        self.draw_left_aligned_text("Right:        --->", self.controls_font, self.WHITE, 575, 220)
+        self.draw_left_aligned_text("Up:           |", self.controls_font, self.WHITE, 575, 260)
         self.draw_left_aligned_text("Attack 1:     J", self.controls_font, self.WHITE, 575, 300)
         self.draw_left_aligned_text("Attack 2:     K", self.controls_font, self.WHITE, 575, 340)
         self.draw_left_aligned_text("Attack 3:     L", self.controls_font, self.WHITE, 575, 380)
+        
+        # Add chat control instructions
+        self.draw_left_aligned_text("Chat:         C", self.controls_font, self.GREEN, 75, 420)
         
         # Display start prompt
         self.draw_text("Press Space to continue", self.controls_font, self.GREEN, self.SCREEN_WIDTH // 2, 500)
@@ -403,7 +413,7 @@ class GameClient:
             
         winner = self.game_state["winner"]
         
-        # Create a semi-transparent overlaya
+        # Create a semi-transparent overlay
         overlay = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
         overlay.set_alpha(180)
         overlay.fill(self.BLACK)
@@ -414,20 +424,87 @@ class GameClient:
             # Display VICTORY for the winner
             self.draw_text("VICTORY", self.game_over_font, self.GREEN, 
                          self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
-            # Display the victory image
-            victory_rect = self.victory_img.get_rect(center=(self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2))
-            self.screen.blit(self.victory_img, victory_rect)
         else:
             # Display DEFEAT for the loser
             self.draw_text("DEFEAT", self.game_over_font, self.RED, 
                          self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
-        
-        # Display overall game result text
-        #self.draw_text(f"PLAYER {winner} WINS THE MATCH!", self.controls_font, self.YELLOW, 
-       #              self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 + 100)
-       # self.draw_text("Waiting for server to restart...", self.controls_font, self.WHITE, 
-       #              self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 + 150)
     
+    def display_round_result(self):
+        if not self.game_state or "round_over" not in self.game_state or not self.game_state["round_over"]:
+            return
+    
+        # Create a semi-transparent overlay
+        overlay = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
+        overlay.set_alpha(180)
+        overlay.fill(self.BLACK)
+        self.screen.blit(overlay, (0, 0))
+    
+        # Check which player had health reduced to 0
+        if self.game_state["player1"]["health"] <= 0:
+            round_winner = 2
+        elif self.game_state["player2"]["health"] <= 0:
+            round_winner = 1
+        else:
+            round_winner = 0
+            
+        # Check if this client is the winner of the round
+        if (self.player_id == "player1" and round_winner == 1) or (self.player_id == "player2" and round_winner == 2):
+            # Display VICTORY for the round winner
+            self.draw_text("ROUND WON", self.game_over_font, self.GREEN, 
+                      self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
+        else:
+            # Display DEFEAT for the round loser
+            self.draw_text("ROUND LOST", self.game_over_font, self.RED, 
+                      self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
+            
+    def process_input(self):
+        """Process player input"""
+        # Don't process input if:
+        # 1. No game state
+        # 2. Round is over
+        # 3. Intro is still counting down
+        # 4. Game is over
+        if (not self.game_state or 
+            self.game_state["round_over"] or 
+            self.game_state["intro_count"] > 0 or
+            self.game_state["game_over"]):
+            return
+            
+        # Handle events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+                pygame.quit()
+                self.client.close()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                # Toggle chat with C key
+                if event.key == pygame.K_c:
+                    self.chat_active = not self.chat_active
+                    if not self.chat_active:
+                        self.chat_input = ""  # Reset input when closing chat
+                elif self.chat_active:
+                    if event.key == pygame.K_RETURN:  # Send message with Enter
+                        if self.chat_input:
+                            # Send chat message to server
+                            self.send_data({"chat": f"{self.player_id}: {self.chat_input}"})
+                            self.chat_input = ""  # Reset input after sending
+                        self.chat_active = False
+                    elif event.key == pygame.K_BACKSPACE:
+                        self.chat_input = self.chat_input[:-1]  # Delete last character
+                    elif event.key < 128:  # Only add printable ASCII characters
+                        self.chat_input += event.unicode  # Add typed character
+        
+        # If chat is not active, process normal game controls
+        if not self.chat_active:
+            # Update fighter based on player_id
+            if self.player_id == "player1":
+                self.fighter_1.move(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.screen, self.fighter_2, False)
+            elif self.player_id == "player2":
+                self.fighter_2.move(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.screen, self.fighter_1, False)
+            
+            self.send_player_state()
+
     def send_player_state(self):
         """Send current player state to server with rate limiting"""
         current_time = pygame.time.get_ticks()
@@ -463,27 +540,6 @@ class GameClient:
                 "hit": self.fighter_2.hit
             })
     
-    def process_input(self):
-        """Process player input"""
-        # Don't process input if:
-        # 1. No game state
-        # 2. Round is over
-        # 3. Intro is still counting down
-        # 4. Game is over
-        if (not self.game_state or 
-            self.game_state["round_over"] or 
-            self.game_state["intro_count"] > 0 or
-            self.game_state["game_over"]):
-            return
-            
-        # Update fighter based on player_id
-        if self.player_id == "player1":
-            self.fighter_1.move(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.screen, self.fighter_2, False)
-        elif self.player_id == "player2":
-            self.fighter_2.move(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.screen, self.fighter_1, False)
-        
-        self.send_player_state()
-    
     def run(self):
         """Main game loop"""
         while True:
@@ -496,14 +552,6 @@ class GameClient:
             # Game loop
             while self.running:
                 self.clock.tick(self.FPS)
-                
-                # Process events
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        self.running = False
-                        pygame.quit()
-                        self.client.close()
-                        sys.exit()
                 
                 # Check connection status
                 if not self.connection_established:
@@ -549,9 +597,7 @@ class GameClient:
                                 
                                 # Check if round is over
                                 if "round_over" in self.game_state and self.game_state["round_over"] and not self.game_state["game_over"]:
-                                    # Display victory image for round winner
-                                    victory_rect = self.victory_img.get_rect(center=(self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 50))
-                                    self.screen.blit(self.victory_img, victory_rect)
+                                    self.display_round_result()
                                 elif "intro_count" in self.game_state and self.game_state["intro_count"] > 0:
                                     # Display count timer
                                     self.draw_text(str(self.game_state["intro_count"]), self.count_font, self.RED, 
@@ -572,28 +618,98 @@ class GameClient:
                                 if "game_over" in self.game_state and self.game_state["game_over"]:
                                     # Display custom victory/defeat message based on player
                                     self.display_game_over_messages()
-                        
-                        else:
-                            # Show waiting screen if no game state yet
-                            self.waiting_screen()
+                                
+                                # Display chat messages
+                               # Display chat messages
+                                if self.chat_messages:
+                                    # Create a semi-transparent background for chat area
+                                    chat_bg = pygame.Surface((500, 150))
+                                    chat_bg.set_alpha(150)
+                                    chat_bg.fill(self.BLACK)
+                                    self.screen.blit(chat_bg, (250, 430))
+                                    
+                                    # Display most recent messages (limited by max_chat_messages)
+                                    recent_messages = self.chat_messages[-self.max_chat_messages:]
+                                    for i, msg in enumerate(recent_messages):
+                                        # Determine message color based on player
+                                        if msg.startswith("player1:"):
+                                            msg_color = self.BLUE
+                                        elif msg.startswith("player2:"):
+                                            msg_color = self.RED
+                                        else:
+                                            msg_color = self.WHITE
+                                        
+                                        # Draw message text
+                                        self.draw_left_aligned_text(msg, self.controls_font, msg_color, 260, 440 + i * 25)
+                                
+                                # Display chat input if active
+                                if self.chat_active:
+                                    # Draw chat input background
+                                    input_bg = pygame.Surface((800, 40))
+                                    input_bg.set_alpha(200)
+                                    input_bg.fill(self.BLACK)
+                                    self.screen.blit(input_bg, (100, 390))
+                                    
+                                    # Draw chat input text
+                                    input_text = f"Chat: {self.chat_input}"
+                                    self.draw_left_aligned_text(input_text, self.controls_font, self.GREEN, 110, 395)
+                                    
+                                    # Draw blinking cursor
+                                    if pygame.time.get_ticks() % 1000 < 500:  # Blink every half second
+                                        cursor_x = 110 + self.controls_font.size(input_text)[0]
+                                        pygame.draw.line(self.screen, self.GREEN, (cursor_x, 395), (cursor_x, 420), 2)
                 
                 # Update display
                 pygame.display.update()
-            
-            # If we're exiting properly
-            if self.connection_retry_count >= self.max_retries:
-                break
+                
+                # Handle events
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self.running = False
+                        pygame.quit()
+                        self.client.close()
+                        sys.exit()
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_ESCAPE:
+                            if self.chat_active:
+                                # Close chat if open
+                                self.chat_active = False
+                                self.chat_input = ""
+                            elif self.game_state and self.game_state.get("game_over", False):
+                                # Exit game if game is over
+                                self.running = False
+                                pygame.quit()
+                                self.client.close()
+                                sys.exit()
 
-        # Clean up when done
-        pygame.quit()
+            # If we reach here, we've broken out of the game loop
+            # Check if we should retry connection
+            if not self.connection_established and self.connection_retry_count < self.max_retries:
+                print("Retrying connection...")
+                continue  # Go back to main loop and try to connect again
+            else:
+                # Either connected successfully or gave up trying
+                pygame.quit()
+                self.client.close()
+                sys.exit()
+
+def main():
+    """Main function"""
+    # Try to read server address from command line arguments
+    server_host = 'localhost'
+    server_port = 5555
+    
+    if len(sys.argv) > 1:
+        server_host = sys.argv[1]
+    if len(sys.argv) > 2:
         try:
-            self.client.close()
-        except:
-            pass
-        sys.exit()
+            server_port = int(sys.argv[2])
+        except ValueError:
+            print(f"Invalid port number: {sys.argv[2]}. Using default port 5555.")
+    
+    # Create and run game client
+    game = GameClient(host=server_host, port=server_port)
+    game.run()
 
 if __name__ == "__main__":
-    # Get server IP from command line or use localhost
-    server_ip = sys.argv[1] if len(sys.argv) > 1 else 'localhost'
-    client = GameClient(host=server_ip)
-    client.run()
+    main()

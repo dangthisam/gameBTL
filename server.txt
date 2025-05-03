@@ -45,8 +45,8 @@ class GameServer:
             "intro_count": 5,       # Countdown at start of round
             "scores": [0, 0],       # Player scores
             "game_over": False,     # Game over state
-            "winner": 0,   
-            "chat_messages": []     # Winner of the game
+            "winner": 0,            # Winner of the game
+            "chat_messages": []     # Lưu trữ tin nhắn chat (tối đa 10 tin nhắn gần nhất)
         }
         
         # Thread safety
@@ -64,6 +64,9 @@ class GameServer:
         # Track last hit times for each player
         self.last_hit_times = {"player1": 0, "player2": 0}
         self.HIT_RESET_DELAY = 0.5  # Reset hit state after 0.5 seconds
+        
+        # Lưu tối đa 10 tin nhắn gần nhất
+        self.MAX_CHAT_MESSAGES = 10
         
     def handle_client(self, client, player_id):
         """Handle connection from a specific client"""
@@ -98,15 +101,8 @@ class GameServer:
                     # Print received data for debugging (comment out in production)
                     # print(f"Received from {player_id}: {client_data}")
                     
-                    # Xử lý tin nhắn chat
-                    if "chat" in client_data:
-                        with self.state_lock:
-                          self.game_state["chat_messages"].append(client_data["chat"])
-                        # Giới hạn số lượng tin nhắn (ví dụ: tối đa 50 tin nhắn)
-                          if len(self.game_state["chat_messages"]) > 50:
-                                self.game_state["chat_messages"] = self.game_state["chat_messages"][-50:]
                     # Process based on message type
-                    elif "status" in client_data and client_data["status"] == "ready":
+                    if "status" in client_data and client_data["status"] == "ready":
                         self.ready_players.add(player_id)
                         print(f"{player_id} is ready. Ready players: {self.ready_players}")
                         
@@ -123,6 +119,31 @@ class GameServer:
                                 self.game_state["player2"] = dict(self.initial_player2_state)
                             self.round_start_time = time.time()
                             self.last_count_update = self.round_start_time
+                    
+                    # Xử lý tin nhắn chat
+                    elif "chat_message" in client_data:
+                        chat_data = client_data["chat_message"]
+                        sender = player_id
+                        message = chat_data["message"]
+                        
+                        # Thêm tin nhắn vào game_state
+                        with self.state_lock:
+                            # Tạo đối tượng tin nhắn với thông tin thời gian
+                            new_message = {
+                                "sender": sender,
+                                "message": message,
+                                "timestamp": time.time()
+                            }
+                            
+                            # Thêm tin nhắn và giữ giới hạn số lượng tin nhắn
+                            self.game_state["chat_messages"].append(new_message)
+                            if len(self.game_state["chat_messages"]) > self.MAX_CHAT_MESSAGES:
+                                self.game_state["chat_messages"].pop(0)
+                        
+                        print(f"Chat message from {sender}: {message}")
+                        
+                        # Broadcast tin nhắn ngay lập tức
+                        self.broadcast_game_state()
                     
                     # Update player state if it's a player update
                     elif "player_id" in client_data and client_data["player_id"] == player_id:
