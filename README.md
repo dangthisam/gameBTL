@@ -1,15 +1,15 @@
-# Project Title: Street Fighter Clone Made in Python
+# Project Title: Street Fighter Clone Made in Python use socket
 
 ## 1. Project Description:
 
 
-This project is a Clone of the Street Fighter Game. It has been developed in Python programming language, using the Pygame library.
+This project is a Clone of the Street Fighter Game. It has been developed in Python programming language, using the Pygame library. and socket to connect two client 
 
 
 ## 2. Tech Stack:
 
-- Python 3
-- Pygame
+- Pythoy 3
+- Pygame 
 
 URL: [https://www.pygame.org/news ](https://www.pygame.org/news)
 
@@ -28,19 +28,19 @@ https://github.com/dangthisam/gameBTL.git
 
 4. Open file server.py and run (python server.py in window or python3 server.py in linux)
 6. Open file client 
- +  nếu bạn chạy trên cùng 1 máy thì chạy lệnh nầy ở trên hai terminal khác nhau: python client.py localhost in windows or python3 client.py localhost in linux
- +Nếu bạn chạy ở hai máy khác máy chạy file server.py thì chạy lệnh "python client.py IPHOST" in host  in windows or "python client.py IP" in linux
+ + if you run on the same machine, run this command on two different terminals: "python client.py localhost" in windows or "python3 client.py localhost in linux"
++ If you run on two different machines, the machine running the server.py file, run the command "python client.py IPHOST" in host in windows or "python client.py IPHOST" in linux (where IPHOST is the ip address of the machine running the server.py file)
 
++ During the game, the two clients can chat directly with each other by clicking the "C" key, the dialog box will open and enter chat messages for each other
+ 
 5. Play the game
 
-Enjoy 😎
+Enjoy 😎![alt text](image.png)
 
 
 ## 4. Contributing:
 
-Pull requests are welcome. 
 
-For major changes, please open an issue first to discuss what you would like to change with project owner (Coding With Russ).
 
 
 ## 5. Screen Recording:
@@ -54,9 +54,9 @@ Name: NGUYEN VAN SAM
 
 Project Name: Street Fighter Style Fighting Game in Python using Pygame and socket - Complete Tutorial
 
-Youtube: https://www.youtube.com/watch?v=s5bd9KMSSW4
+TikTok: https://www.tiktok.com/@nguyenvvansam
 
-Github: https://github.com/russs123/brawler_tut
+Github: https://github.com/dangthisam/
 
 
 
