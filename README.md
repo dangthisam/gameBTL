@@ -95,4 +95,4 @@ Contributions are welcome! Feel free to fork the repository and submit pull requ
 
 ---
 Enjoy the game and happy coding!  
-![Creator Avatar 1](./img/em15.png) ![Creator Avatar 2](./img/anh2.png)
+![Creator Avatar 2](./img/anh2.png)
