@@ -36,7 +36,10 @@ https://github.com/dangthisam/gameBTL.git
 5. Play the game
 
 Enjoy 😎![alt text](image.png)
-<img loading="lazy" width="30px" style="border-radius=50%"src="./img/em15.png" alt="dangthithuy" />
+```markdown
+<img loading="lazy" width="30px" style="border-radius: 50%;" src="./img/em15.png" alt="dangthithuy" />
+<img loading="lazy" width="30px" style="border-radius: 50%;" src="./img/anh2.png" alt="dangthithuy" />
+```
 
 ## 4. Contributing:
 
