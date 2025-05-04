@@ -1,65 +1,81 @@
-# Project Title: Street Fighter Clone Made in Python use socket
+# Street Fighter Clone in Python
 
-## 1. Project Description:
+## 1. Project Description
 
+This project is a clone of the Street Fighter game, developed using Python and the Pygame library. It also utilizes sockets to enable multiplayer functionality between two clients.
 
-This project is a Clone of the Street Fighter Game. It has been developed in Python programming language, using the Pygame library. and socket to connect two client 
+## 2. Tech Stack
 
+- Python 3
+- Pygame  
+    [Learn more about Pygame](https://www.pygame.org/news)
 
-## 2. Tech Stack:
+## 3. Installation and Usage
 
-- Pythoy 3
-- Pygame 
+### Steps to Run the Game:
 
-URL: [https://www.pygame.org/news ](https://www.pygame.org/news)
+1. Clone the repository:
+     ```bash
+     git clone https://github.com/dangthisam/gameBTL.git
+     ```
 
+2. Navigate to the project folder:
+     ```bash
+     cd gameBTL
+     ```
 
-## 3. Installing:
+3. Start the server:
+     ```bash
+     python server.py  # For Windows
+     python3 server.py # For Linux
+     ```
 
-1. Clone the git repo
+4. Start the client:
+     - **On the same machine:**  
+         Open two terminals and run:
+         ```bash
+         python client.py localhost  # For Windows
+         python3 client.py localhost # For Linux
+         ```
+     - **On different machines:**  
+         On the machine running `server.py`, find its IP address. On the client machine, run:
+         ```bash
+         python client.py IPHOST  # For Windows
+         python3 client.py IPHOST # For Linux
+         ```
+         Replace `IPHOST` with the server machine's IP address.
 
-```
-https://github.com/dangthisam/gameBTL.git
-```
+5. In-game chat:  
+     During the game, press the `C` key to open the chat dialog box and exchange messages with the other player.
 
-2. Open project folder
+6. Enjoy the game! 😎
 
-3. Explore
+## 4. Features
 
-4. Open file server.py and run (python server.py in window or python3 server.py in linux)
-6. Open file client 
- + if you run on the same machine, run this command on two different terminals: "python client.py localhost" in windows or "python3 client.py localhost in linux"
-+ If you run on two different machines, the machine running the server.py file, run the command "python client.py IPHOST" in host in windows or "python client.py IPHOST" in linux (where IPHOST is the ip address of the machine running the server.py file)
+- Multiplayer gameplay using sockets.
+- Real-time chat functionality between players.
+- Classic Street Fighter-style gameplay.
 
-+ During the game, the two clients can chat directly with each other by clicking the "C" key, the dialog box will open and enter chat messages for each other
- 
-5. Play the game
+## 5. Screenshots
 
-Enjoy 😎![alt text](image.png)
-```markdown
-<img loading="lazy" width="30px" style="border-radius: 50%;" src="./img/em15.png" alt="dangthithuy" />
-<img loading="lazy" width="30px" style="border-radius: 50%;" src="./img/anh2.png" alt="dangthithuy" />
-```
+![Gameplay Screenshot](image.png)
+![Gameplay ScreenShot](image-1.png)
 
-## 4. Contributing:
+## 6. Demo Video
 
+[Watch the gameplay demo](https://user-images.githubusercontent.com/15172744/190894691-c52ac22d-b76c-4890-9057-98eed66683a9.mp4)
 
+## 7. Contributing
 
+Contributions are welcome! Feel free to fork the repository and submit pull requests.
 
-## 5. Screen Recording:
+## 8. Created By
 
-https://user-images.githubusercontent.com/15172744/190894691-c52ac22d-b76c-4890-9057-98eed66683a9.mp4
+- **Name:** Nguyen Van Sam  
+- **Project:** Street Fighter Style Fighting Game in Python using Pygame and Sockets  
+- **TikTok:** [@nguyenvvansam](https://www.tiktok.com/@nguyenvvansam)  
+- **GitHub:** [dangthisam](https://github.com/dangthisam)
 
-
-## 6. Created By:
-
-Name: NGUYEN VAN SAM
-
-Project Name: Street Fighter Style Fighting Game in Python using Pygame and socket - Complete Tutorial
-
-TikTok: https://www.tiktok.com/@nguyenvvansam
-
-Github: https://github.com/dangthisam/
-
-
-
+---
+Enjoy the game and happy coding!  
+![Creator Avatar 1](./img/em15.png) ![Creator Avatar 2](./img/anh2.png)
