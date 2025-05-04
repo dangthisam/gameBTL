@@ -58,8 +58,25 @@ This project is a clone of the Street Fighter game, developed using Python and t
 
 ## 5. Screenshots
 
-![Gameplay Screenshot](image.png)
-![Gameplay ScreenShot](image-1.png)
+
+## 5. Screenshots
+
+Here are some screenshots from the game:
+
+![Gameplay Screenshot 1](image-2.png)  
+*Figure 1: Main menu of the game.*
+
+![Gameplay Screenshot 2](image-3.png)  
+*Figure 2: Character selection screen.*
+
+![Gameplay Screenshot 3](image-4.png)  
+*Figure 3: In-game battle scene.*
+
+![Gameplay Screenshot 4](image-5.png)  
+*Figure 4: Multiplayer chat feature.*
+
+![Gameplay Screenshot 5](image-6.png)  
+*Figure 5: Victory screen.*
 
 ## 6. Demo Video
 
