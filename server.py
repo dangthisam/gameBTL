@@ -11,6 +11,7 @@ class GameServer:
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server.bind((host, port))
         self.server.listen(2)  # Accept only 2 connections (2 players)
+       # self.game_state = {"player_selections": [0, 0], "game_active": False}
         print(f"Server running and listening on {host}:{port}")
         
         # Initial player states for reset
@@ -47,7 +48,7 @@ class GameServer:
             "scores": [0, 0],       # Player scores
             "game_over": False,     # Game over state
             "winner": 0,   ## Winner ID (1 or 2)
-
+            "player_selections": [0, 0],
             "chat_messages": []     ## List to store chat messages
         }
         
@@ -56,7 +57,8 @@ class GameServer:
         
         self.clients = []
         self.player_ids = {}  # Map socket to player ID
-        self.ready_players = set()  # Track ready players
+        self.ready_players = set()
+        self.selections_done = set()  # Track players who have selected characters  # Track ready players
         
         self.round_start_time = 0
         self.last_count_update = 0
@@ -127,6 +129,15 @@ class GameServer:
                                 self.game_state["player2"] = dict(self.initial_player2_state)
                             self.round_start_time = time.time()
                             self.last_count_update = self.round_start_time
+                    elif "status" in client_data and client_data["status"] == "selection_done":
+                        index = int(client_data["selection"])
+                        if 0 <= index < 4:  # Kiểm tra chỉ số hợp lệ
+                            with self.state_lock:
+                                self.game_state["player_selections"][player_id[-1] == '2'] = index
+                                self.selections_done.add(player_id)
+                                print(f"{player_id} selected character index: {index}")
+                            if len(self.selections_done) == 2:
+                                print("Both players have selected characters, waiting for ready status.")
                     
                     # Update player state if it's a player update
                     elif "player_id" in client_data and client_data["player_id"] == player_id:

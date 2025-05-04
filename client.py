@@ -55,6 +55,8 @@ class GameClient:
         self.BLUE = (0, 0, 255)
         self.BLACK = (0, 0, 0)
         self.GREEN = (0, 255, 0)
+        self.ORANGE = (255, 165, 0)
+        self.PINK = (255, 192, 203)
         
         # Game variables
         self.intro_count = 5 # Countdown for intro
@@ -65,32 +67,59 @@ class GameClient:
         self.WIN_SCORE = 5 # Score needed to win the game
         self.winner = 0 # Winner ID (1 or 2)
         self.show_controls = True
+        self.character_selection = True  # Cờ để hiển thị màn hình chọn nhân vật sau màn hình điều khiển.
+        self.player_selection = [0, 0]  # Lưu chỉ số nhân vật được chọn cho mỗi người chơi (0 = Warrior, 1 = Wizard, v.v.).
         
         # Fighter variables
         self.WARRIOR_SIZE = 162
         self.WARRIOR_SCALE = 4
         self.WARRIOR_OFFSET = [72, 56]
         self.WARRIOR_DATA = [self.WARRIOR_SIZE, self.WARRIOR_SCALE, self.WARRIOR_OFFSET]
+
         self.WIZARD_SIZE = 250
         self.WIZARD_SCALE = 3
         self.WIZARD_OFFSET = [112, 107]
         self.WIZARD_DATA = [self.WIZARD_SIZE, self.WIZARD_SCALE, self.WIZARD_OFFSET]
         
+        self.HUNTRESS_SIZE = 250
+        self.HUNTRESS_SCALE = 3
+        self.HUNTRESS_OFFSET = [112, 107]
+        self.HUNTRESS_DATA = [self.HUNTRESS_SIZE, self.HUNTRESS_SCALE, self.HUNTRESS_OFFSET]
+
+        # Kích thước và thông số cho Medieval Warrior Pack 3
+        self.MEDIEVALWARRIORPACK3_SIZE = 200
+        self.MEDIEVALWARRIORPACK3_SCALE = 3
+        self.MEDIEVALWARRIORPACK3_OFFSET = [86, 68]
+        self.MEDIEVALWARRIORPACK3_DATA = [self.MEDIEVALWARRIORPACK3_SIZE, self.MEDIEVALWARRIORPACK3_SCALE, self.MEDIEVALWARRIORPACK3_OFFSET]
         # Load resources
-        self.load_resources() # Load game resources
-        
-        # Create fighters
-        self.fighter_1 = Fighter(1, 200, 310, False, self.WARRIOR_DATA, self.warrior_sheet, 
-                                [10, 8, 1, 7, 7, 3, 7], self.sword_fx)
-        self.fighter_2 = Fighter(2, 700, 310, True, self.WIZARD_DATA, self.wizard_sheet, 
-                                [8, 8, 1, 8, 8, 3, 7], self.magic_fx)
-        
-        # Store initial positions for resetting
+     
         self.fighter_1_initial_x = 200
         self.fighter_1_initial_y = 310
         self.fighter_2_initial_x = 700
         self.fighter_2_initial_y = 310
+        self.fighter_1 = None
+        self.fighter_2 = None
+        # Initialize CHARACTER_DATA
+        self.CHARACTER_DATA = [
+            {"name": "WARRIOR", "data": [162, 4, [72, 56]], "sheet": None, "steps": [10, 8, 1, 7, 7, 3, 7], "sound": None, "color": self.RED},
+            {"name": "WIZARD", "data": [250, 3, [112, 107]], "sheet": None, "steps": [8, 8, 1, 8, 8, 3, 7], "sound": None, "color": self.BLUE},
+            {"name": "HUNTRESS", "data": [250, 3, [112, 107]], "sheet": None, "steps": [8, 8, 2, 5, 5, 3, 7], "sound": None, "color": self.GREEN},
+            {"name": "MEDIEVAL WARRIOR", "data": [200, 3, [86, 68]], "sheet": None, "steps": [10, 6, 2, 4, 4, 3, 9], "sound": None, "color": self.ORANGE}
+        ]
+        self.load_resources() # Load game resources
+        # Create fighters
+    def create_fighters(self):
+        """Tạo Fighter dựa trên lựa chọn nhân vật"""
+        p1_char = self.CHARACTER_DATA[self.player_selection[0]]
+        p2_char = self.CHARACTER_DATA[self.player_selection[1]]
+        self.fighter_1 = Fighter(1, self.fighter_1_initial_x, self.fighter_1_initial_y, False,
+                                p1_char["data"], p1_char["sheet"], p1_char["steps"], p1_char["sound"])
+        self.fighter_2 = Fighter(2, self.fighter_2_initial_x, self.fighter_2_initial_y, True,
+                                p2_char["data"], p2_char["sheet"], p2_char["steps"], p2_char["sound"])
         
+        # Store initial positions for resetting
+        
+
         # Network update rate (to prevent flooding the server)
         self.last_update_time = 0
         self.update_interval = 1000 / 30  # 30 updates per second
@@ -102,10 +131,15 @@ class GameClient:
             pygame.mixer.music.load("assets/audio/ok.mp3") # Load background music
             pygame.mixer.music.set_volume(1) # Set volume
             pygame.mixer.music.play(-1, 0.0, 5000) # Loop music indefinitely
-            self.sword_fx = pygame.mixer.Sound("assets/audio/sword.wav") # Load sword sound effect
-            self.sword_fx.set_volume(0.5) # Set volume
-            self.magic_fx = pygame.mixer.Sound("assets/audio/magic.wav") # Load magic sound effect
-            self.magic_fx.set_volume(0.75) # Set volume
+            self.CHARACTER_DATA[0]["sheet"] = pygame.image.load("assets/images/warrior/Sprites/warrior.png").convert_alpha()
+            self.CHARACTER_DATA[0]["sound"] = pygame.mixer.Sound("assets/audio/sword.wav")
+            self.CHARACTER_DATA[1]["sheet"] = pygame.image.load("assets/images/wizard/Sprites/wizard.png").convert_alpha()
+            self.CHARACTER_DATA[1]["sound"] = pygame.mixer.Sound("assets/audio/magic.wav")
+            self.CHARACTER_DATA[2]["sheet"] = pygame.image.load("assets/images/Huntress/Sprites/Huntress.png").convert_alpha()
+            self.CHARACTER_DATA[2]["sound"] = pygame.mixer.Sound("assets/audio/sword.wav")
+            self.CHARACTER_DATA[3]["sheet"] = pygame.image.load("assets/images/MedievalWarriorPack3/Sprites/MedievalWarriorPack3.png").convert_alpha()
+            self.CHARACTER_DATA[3]["sound"] = pygame.mixer.Sound("assets/audio/sword.wav")
+
             
             # Load background image
             self.bg_image = pygame.image.load("assets/images/background/background.jpg").convert_alpha()
@@ -113,6 +147,12 @@ class GameClient:
             # Load spritesheets
             self.warrior_sheet = pygame.image.load("assets/images/warrior/Sprites/warrior.png").convert_alpha()
             self.wizard_sheet = pygame.image.load("assets/images/wizard/Sprites/wizard.png").convert_alpha()
+            
+
+            self.huntress_sheet = pygame.image.load( "assets/images/Huntress/Sprites/Huntress.png").convert_alpha()
+                                                
+            self.medievalwarriorpack3_sheet = pygame.image.load(  "assets/images/MedievalWarriorPack3/Sprites/MedievalWarriorPack3.png").convert_alpha()
+  
             
             # Load victory image
             self.victory_img = pygame.image.load("assets/images/icons/victory.png").convert_alpha()
@@ -247,7 +287,7 @@ class GameClient:
                     self.game_over = self.game_state["game_over"]
                     self.winner = self.game_state["winner"]
                     
-                    if self.game_state["game_active"]:
+                    if self.game_state["game_active"] and self.fighter_1 and self.fighter_2:
                         # Update fighter states based on player role
                         if self.player_id == "player1":
                             # For player1: Only update health from server (in case of taking damage)
@@ -304,8 +344,10 @@ class GameClient:
             return
             
         try:
+            print(f"Sending data: {data}")
             serialized_data = pickle.dumps(data) # Serialize data
             self.client.send(serialized_data) # Send data to server
+            print(f"Data sent successfully: {data}")
         except ConnectionResetError:
             print("Connection reset by server while sending data")
             self.connection_established = False
@@ -320,7 +362,52 @@ class GameClient:
         img = font.render(text, True, text_col) # Render text
         text_rect = img.get_rect(center=(x, y)) # Get text rectangle
         self.screen.blit(img, text_rect) # Blit text on screen
-    
+
+    def draw_character_selection(self):
+            """Draw character selection screen using self.player_selection"""
+            s = pygame.Surface((self.SCREEN_WIDTH,self.SCREEN_HEIGHT))
+            s.set_alpha(220)
+            s.fill(self.BLACK)
+            self.screen.blit(s, (0, 0))
+
+            # tiêu đề
+            self.draw_text("CHARACTER SELECTION", self.title_font, self.YELLOW, self.SCREEN_WIDTH // 2, 50)
+
+            # Các ô nhân vật
+            character_width = 200 #kích thuoc
+            character_height = 250
+            spacing = 40 # khoảng cách các ô
+            # Tọa độ x bắt đầu, căn giữa bằng cách trừ tổng chiều rộng (4 ô + 3 khoảng cách) khỏi chiều rộng màn hình.
+            start_x = (self.SCREEN_WIDTH - (character_width * 4 + spacing * 3)) // 2
+
+            for i in range(4):
+                # lấy màu từ character_data
+                box_color = self.CHARACTER_DATA[i]["color"]
+                # .rect vẽ khung
+                pygame.draw.rect(self.screen, box_color,
+                                (start_x + i * (character_width + spacing), 120, character_width, character_height), 0)
+                pygame.draw.rect(self.screen, self.WHITE,
+                                (start_x + i * (character_width + spacing), 120, character_width, character_height), 3)
+
+                # vẽ tên nhân vật(văn bản) lên khung
+                self.draw_text(self.CHARACTER_DATA[i]["name"], self.controls_font, self.WHITE, 
+                            start_x + i * (character_width + spacing) + character_width // 2, 140)
+
+                # vẽ tên nhân vật trong mỗi ô
+                # Use self.player_selection instead of the parameter
+                if self.player_selection[0] == i:
+                    self.draw_text("P1", self.title_font, self.WHITE, 
+                                start_x + i * (character_width + spacing) + character_width // 2, 200)
+                if self.player_selection[1] == i:
+                    self.draw_text("P2", self.title_font, self.WHITE, 
+                                start_x + i * (character_width + spacing) + character_width // 2, 250)
+
+            # Vẽ instruction text
+            self.draw_text("Player 1: 1-4 keys to select", self.controls_font, self.BLUE, self.SCREEN_WIDTH // 2, 400)
+            self.draw_text("Player 2: 6-9 keys to select", self.controls_font, self.RED, self.SCREEN_WIDTH // 2, 450)
+            self.draw_text("Press ENTER to start fighting", self.controls_font, self.GREEN, self.SCREEN_WIDTH // 2, 500)
+            
+        
     def draw_left_aligned_text(self, text, font, text_col, x, y): # x, y are top-left corner coordinates
         """Draw left-aligned text"""
         img = font.render(text, True, text_col) # Render text
@@ -469,52 +556,40 @@ class GameClient:
                       self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
             
     def process_input(self):
-        """Process player input"""
-        # Don't process input if:
-        # 1. No game state
-        # 2. Round is over
-        # 3. Intro is still counting down
-        # 4. Game is over
-        if (not self.game_state or 
-            self.game_state["round_over"] or 
+        """Process player input during gameplay"""
+        if (not self.game_state or
+            self.game_state["round_over"] or
             self.game_state["intro_count"] > 0 or
             self.game_state["game_over"]):
             return
-            
-        # Handle events
-        for event in pygame.event.get(): # trả về danh sách các sự kiện đã xảy ra (như nhấn phím, di chuyển chuột, đóng cửa sổ, v.v.).
+
+        for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
                 pygame.quit()
                 self.client.close()
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
-                # Toggle chat with C key
-                # on/off chat input with C key
                 if event.key == pygame.K_c:
                     self.chat_active = not self.chat_active
                     if not self.chat_active:
-                        self.chat_input = ""  # Reset input when closing chat
+                        self.chat_input = ""
                 elif self.chat_active:
-                    if event.key == pygame.K_RETURN:  # Send message with Enter
+                    if event.key == pygame.K_RETURN:
                         if self.chat_input:
-                            # Send chat message to server
                             self.send_data({"chat": f"{self.player_id}: {self.chat_input}"})
-                            self.chat_input = ""  # Reset input after sending
+                            self.chat_input = ""
                         self.chat_active = False
                     elif event.key == pygame.K_BACKSPACE:
-                        self.chat_input = self.chat_input[:-1]  # Delete last character
-                    elif event.key < 128:  # Only add printable ASCII characters
-                        self.chat_input += event.unicode  # Add typed character
-        
-        # If chat is not active, process normal game controls
-        if not self.chat_active:
-            # Update fighter based on player_id
+                        self.chat_input = self.chat_input[:-1]
+                    elif event.key < 128:
+                        self.chat_input += event.unicode
+
+        if not self.chat_active and self.fighter_1 and self.fighter_2:
             if self.player_id == "player1":
                 self.fighter_1.move(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.screen, self.fighter_2, False)
             elif self.player_id == "player2":
                 self.fighter_2.move(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.screen, self.fighter_1, False)
-            
             self.send_player_state()
 
     def send_player_state(self):
@@ -587,15 +662,49 @@ class GameClient:
                         key = pygame.key.get_pressed()
                         if key[pygame.K_SPACE]:
                             self.show_controls = False
+                            self.character_selection = True
+                    elif self.character_selection:
+                        self.draw_character_selection()
+                        for event in pygame.event.get():
+                            if event.type == pygame.QUIT:
+                                self.running = False
+                                pygame.quit()
+                                self.client.close()
+                                sys.exit()
+                            elif event.type == pygame.KEYDOWN:
+                                if event.key == pygame.K_1:
+                                    self.player_selection[0] = 0
+                                elif event.key == pygame.K_2:
+                                    self.player_selection[0] = 1
+                                elif event.key == pygame.K_3:
+                                    self.player_selection[0] = 2
+                                elif event.key == pygame.K_4:
+                                    self.player_selection[0] = 3
+                                elif event.key == pygame.K_6:
+                                    self.player_selection[1] = 0
+                                elif event.key == pygame.K_7:
+                                    self.player_selection[1] = 1
+                                elif event.key == pygame.K_8:
+                                    self.player_selection[1] = 2
+                                elif event.key == pygame.K_9:
+                                    self.player_selection[1] = 3
+                                elif event.key == pygame.K_RETURN:
+                                    self.send_data({"status": "selection_done", "player_id": self.player_id,
+                                                   "selection": self.player_selection[self.player_id[-1] == '2']})
+                                    self.character_selection = False
+                                    self.send_data({"status": "ready", "player_id": self.player_id})
                             # Tell server we're ready
-                            self.send_data({"status": "ready", "player_id": self.player_id})
+                      
                     else:
                         # If we have game state and game is active
-                        if self.game_state and "game_active" in self.game_state:
+                        if self.game_state and "game_active" in self.game_state :
                             if not self.game_state["game_active"]:
                                 # Show waiting screen
                                 self.waiting_screen()
-                            else:
+                            else : 
+                                if not self.fighter_1 and not self.fighter_2:
+                                    self.create_fighters()
+                            
                                 # Update health bars
                                 if "player1" in self.game_state and "health" in self.game_state["player1"]:
                                     self.draw_health_bar(self.game_state["player1"]["health"], 20, 20)
