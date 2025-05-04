@@ -1,7 +1,7 @@
-import socket
-import pickle
-import threading
-import time
+import socket # For socket handling
+import pickle # For object serialization
+import threading # For thread handling
+import time # For time handling
 import json
 
 class GameServer:

@@ -26,7 +26,7 @@ class GameClient:
         self.chat_messages = []  # Danh sách tin nhắn
         self.chat_input = ""  # Tin nhắn đang nhập
         self.chat_active = False  # Trạng thái nhập tin nhắn
-        self.max_chat_messages = 5 # Số tin nhắn tối đa hiển thị trên màn hình
+        self.max_chat_messages = 1 # Số tin nhắn tối đa hiển thị trên màn hình
 
             ## Chat message display control
         self.show_chat_messages = False      # Control chat messages visibility
