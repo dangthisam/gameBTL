@@ -6,6 +6,7 @@ import json
 
 class GameServer:
     def __init__(self, host='0.0.0.0', port=5555):
+        #AF-INET: IPv4, SOCK_STREAM: TCP
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # Enable reuse of the address to avoid "Address already in use" errors
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -15,6 +16,7 @@ class GameServer:
         print(f"Server running and listening on {host}:{port}")
         
         # Initial player states for reset
+        # Player 1 state
         self.initial_player1_state = {
             "x": 200, 
             "y": 310, 
@@ -48,16 +50,16 @@ class GameServer:
             "scores": [0, 0],       # Player scores
             "game_over": False,     # Game over state
             "winner": 0,   ## Winner ID (1 or 2)
-            "player_selections": [0, 0],
+            "player_selections": [0, 0], ## Player character selections (0-3)
             "chat_messages": []     ## List to store chat messages
         }
         
         # Thread safety
         self.state_lock = threading.Lock() ## Lock for game state updates
         
-        self.clients = []
+        self.clients = [] # List of connected clients
         self.player_ids = {}  # Map socket to player ID
-        self.ready_players = set()
+        self.ready_players = set() ## Track ready players
         self.selections_done = set()  # Track players who have selected characters  # Track ready players
         
         self.round_start_time = 0
@@ -77,9 +79,9 @@ class GameServer:
             # Send initial game state
             with self.state_lock:
                 serialized_state = pickle.dumps(self.game_state)
-            client.send(serialized_state)
+            client.send(serialized_state) # Send initial game state to the client
             
-            while True:
+            while True: # Loop to receive data from client
                 # Receive data from client with timeout
                 client.settimeout(1.0)  # 1-second timeout for receiving data
                 try:
@@ -99,7 +101,7 @@ class GameServer:
                 
                 # Decode received data
                 try:
-                    client_data = pickle.loads(data)
+                    client_data = pickle.loads(data) # Deserialize the data
                     
                     # Print received data for debugging (comment out in production)
                     # print(f"Received from {player_id}: {client_data}")
@@ -175,18 +177,19 @@ class GameServer:
                 self.game_state["game_active"] = False
                 
             # Broadcast to remaining clients
-            self.broadcast_game_state()
+            self.broadcast_game_state() # Send updated state to remaining clients
             
     def process_attack_interactions(self):
         """Process attack interactions between players"""
-        current_time = time.time()
+        current_time = time.time() # Get current time for hit reset logic
         
         with self.state_lock:
-            if not self.game_state["game_active"] or self.game_state["round_over"]:
+            if not self.game_state["game_active"] or self.game_state["round_over"]: # Check if game is active and round is not over
+                # If game is not active or round is over, skip processing
                 return
                 
-            p1 = self.game_state["player1"]
-            p2 = self.game_state["player2"]
+            p1 = self.game_state["player1"] ## Player 1 state
+            p2 = self.game_state["player2"] ## Player 2 state
             
             # Reset hit states if enough time has passed since last hit
             if p1["hit"] and current_time - self.last_hit_times["player1"] >= self.HIT_RESET_DELAY:
@@ -202,7 +205,7 @@ class GameServer:
                 p1_right = p1["x"] + 100  # Estimated attack range
                 p2_left = p2["x"] - 50     # Estimated position adjustment
                 
-                if p1_right > p2_left and p1["y"] - 50 < p2["y"] + 50 and p1["y"] + 50 > p2["y"] - 50:
+                if p1_right > p2_left and p1["y"] - 50 < p2["y"] + 50 and p1["y"] + 50 > p2["y"] - 50: # Check if player 1's attack hits player 2
                     # Hit detected
                     p2["health"] -= 5 # Damage amount
                     p2["hit"] = True
@@ -212,8 +215,8 @@ class GameServer:
                     if p2["health"] <= 0:
                         p2["health"] = 0
                         self.game_state["round_over"] = True
-                        self.game_state["scores"][0] += 1
-                        self.round_over_time = time.time()
+                        self.game_state["scores"][0] += 1 # Increment player 1's score
+                        self.round_over_time = time.time() # Store round over time
                     
             # Check if player 2 is attacking player 1
             if p2["attacking"] and not p1["hit"]:
@@ -242,7 +245,7 @@ class GameServer:
                 self.game_state["game_over"] = True
                 self.game_state["winner"] = 2
                 
-    def update_game_state(self):
+    def update_game_state(self): #update game state based on time
         """Update game state based on time"""
         current_time = time.time()
         

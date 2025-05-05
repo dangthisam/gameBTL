@@ -23,8 +23,8 @@ class GameClient:
         self.max_retries = 3  # Maximum number of connection attempts
 
         ## Chat variables
-        self.chat_messages = []  # Danh sách tin nhắn
-        self.chat_input = ""  # Tin nhắn đang nhập
+        self.chat_messages = []  # Danh sách tin nhắn nhận từ server
+        self.chat_input = ""  # lưu trữ tin nhắn đang nhập
         self.chat_active = False  # Trạng thái nhập tin nhắn
         self.max_chat_messages = 1 # Số tin nhắn tối đa hiển thị trên màn hình
 
@@ -93,8 +93,8 @@ class GameClient:
         self.MEDIEVALWARRIORPACK3_DATA = [self.MEDIEVALWARRIORPACK3_SIZE, self.MEDIEVALWARRIORPACK3_SCALE, self.MEDIEVALWARRIORPACK3_OFFSET]
         # Load resources
      
-        self.fighter_1_initial_x = 200
-        self.fighter_1_initial_y = 310
+        self.fighter_1_initial_x = 200 # toạ độ x ban đầu của fighter 1
+        self.fighter_1_initial_y = 310 # toạ độ y ban đầu của fighter 1
         self.fighter_2_initial_x = 700
         self.fighter_2_initial_y = 310
         self.fighter_1 = None
@@ -158,10 +158,10 @@ class GameClient:
             self.victory_img = pygame.image.load("assets/images/icons/victory.png").convert_alpha()
             
             # Define fonts
-            self.count_font = pygame.font.Font("assets/fonts/Black Magnet.ttf", 80)
-            self.score_font = pygame.font.Font("assets/fonts/Black Magnet.ttf", 30)
-            self.game_over_font = pygame.font.Font("assets/fonts/Black Magnet.ttf", 50)
-            self.controls_font = pygame.font.Font("assets/fonts/Black Magnet.ttf", 25)
+            self.count_font = pygame.font.Font("assets/fonts/transMutation.ttf", 80)
+            self.score_font = pygame.font.Font("assets/fonts/transMutation.ttf", 30)
+            self.game_over_font = pygame.font.Font("assets/transMutation.ttf", 50)
+            self.controls_font = pygame.font.Font("assets/fonts/transMutation.ttf", 25)
             self.title_font = pygame.font.Font("assets/fonts/Black Magnet.ttf", 40)
         except Exception as e:
             print(f"Error loading resources: {e}")
@@ -196,7 +196,7 @@ class GameClient:
                 
                 # Set socket timeout for connection
                 self.client.settimeout(5)
-                self.client.connect(self.addr)
+                self.client.connect(self.addr) # connect to server
                 
                 # Reset timeout to None (blocking mode) for normal operation
                 self.client.settimeout(None)
@@ -217,7 +217,7 @@ class GameClient:
                 print(f"You are {self.player_id}")
                 
                 # Send initial confirmation to server
-                self.send_data({"player_id": self.player_id, "status": "connected"})
+                self.send_data({"player_id": self.player_id, "status": "connected"}) ## Send confirmation to server gửi trạng thái kết nối
                 
                 # Start receiving data from server
                 self.connection_established = True
@@ -672,22 +672,24 @@ class GameClient:
                                 self.client.close()
                                 sys.exit()
                             elif event.type == pygame.KEYDOWN:
-                                if event.key == pygame.K_1:
-                                    self.player_selection[0] = 0
-                                elif event.key == pygame.K_2:
-                                    self.player_selection[0] = 1
-                                elif event.key == pygame.K_3:
-                                    self.player_selection[0] = 2
-                                elif event.key == pygame.K_4:
-                                    self.player_selection[0] = 3
-                                elif event.key == pygame.K_6:
-                                    self.player_selection[1] = 0
-                                elif event.key == pygame.K_7:
-                                    self.player_selection[1] = 1
-                                elif event.key == pygame.K_8:
-                                    self.player_selection[1] = 2
-                                elif event.key == pygame.K_9:
-                                    self.player_selection[1] = 3
+                                if self.player_id == "player1":
+                                    if event.key == pygame.K_1:
+                                        self.player_selection[0] = 0
+                                    elif event.key == pygame.K_2:
+                                        self.player_selection[0] = 1
+                                    elif event.key == pygame.K_3:
+                                        self.player_selection[0] = 2
+                                    elif event.key == pygame.K_4:
+                                        self.player_selection[0] = 3
+                                elif self.player_id == "player2":
+                                    if event.key == pygame.K_6:
+                                        self.player_selection[1] = 0
+                                    elif event.key == pygame.K_7:
+                                        self.player_selection[1] = 1
+                                    elif event.key == pygame.K_8:
+                                        self.player_selection[1] = 2
+                                    elif event.key == pygame.K_9:
+                                        self.player_selection[1] = 3
                                 elif event.key == pygame.K_RETURN:
                                     self.send_data({"status": "selection_done", "player_id": self.player_id,
                                                    "selection": self.player_selection[self.player_id[-1] == '2']})
