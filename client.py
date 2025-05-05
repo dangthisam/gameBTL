@@ -160,9 +160,9 @@ class GameClient:
             # Define fonts
             self.count_font = pygame.font.Font("assets/fonts/transMutation.ttf", 80)
             self.score_font = pygame.font.Font("assets/fonts/transMutation.ttf", 30)
-            self.game_over_font = pygame.font.Font("assets/transMutation.ttf", 50)
+            self.game_over_font = pygame.font.Font("assets/fonts/transMutation.ttf", 50)
             self.controls_font = pygame.font.Font("assets/fonts/transMutation.ttf", 25)
-            self.title_font = pygame.font.Font("assets/fonts/Black Magnet.ttf", 40)
+            self.title_font = pygame.font.Font("assets/fonts/transMutation.ttf", 40)
         except Exception as e:
             print(f"Error loading resources: {e}")
             pygame.quit()
@@ -672,7 +672,7 @@ class GameClient:
                                 self.client.close()
                                 sys.exit()
                             elif event.type == pygame.KEYDOWN:
-                                if self.player_id == "player1":
+                               # if self.player_id == "player1":
                                     if event.key == pygame.K_1:
                                         self.player_selection[0] = 0
                                     elif event.key == pygame.K_2:
@@ -681,7 +681,7 @@ class GameClient:
                                         self.player_selection[0] = 2
                                     elif event.key == pygame.K_4:
                                         self.player_selection[0] = 3
-                                elif self.player_id == "player2":
+                               # elif self.player_id == "player2":
                                     if event.key == pygame.K_6:
                                         self.player_selection[1] = 0
                                     elif event.key == pygame.K_7:
@@ -690,11 +690,12 @@ class GameClient:
                                         self.player_selection[1] = 2
                                     elif event.key == pygame.K_9:
                                         self.player_selection[1] = 3
-                                elif event.key == pygame.K_RETURN:
-                                    self.send_data({"status": "selection_done", "player_id": self.player_id,
-                                                   "selection": self.player_selection[self.player_id[-1] == '2']})
-                                    self.character_selection = False
-                                    self.send_data({"status": "ready", "player_id": self.player_id})
+                           
+                                    elif event.key == pygame.K_RETURN:
+                                        self.send_data({"status": "selection_done", "player_id": self.player_id,
+                                                    "selection": self.player_selection[self.player_id[-1] == '2']})
+                                        self.character_selection = False
+                                        self.send_data({"status": "ready", "player_id": self.player_id})
                             # Tell server we're ready
                       
                     else:
