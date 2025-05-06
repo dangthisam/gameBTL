@@ -250,93 +250,91 @@ class GameClient:
     def receive_data(self):
         """Continuously receive data from server"""
         self.client.settimeout(5)  # Set timeout to detect disconnection
-        
-        while self.running: ## Keep receiving data until the game is over or connection is lost
+
+        while self.running:  # Keep receiving data until the game is over or connection is lost
             try:
-                data = self.client.recv(4096) # Receive data from server
+                data = self.client.recv(4096)  # Receive data from server
                 if not data:
                     print("Server disconnected (no data)")
                     break
-                    
-                self.game_state = pickle.loads(data) # Unpickle the received data
-                
+
+                self.game_state = pickle.loads(data)  # Unpickle the received data
+                if self.game_state is None:
+                    print("Received None data from server")
+                    break
+
                 # Update local game state based on server data
                 if self.game_state and "game_active" in self.game_state:
-                    # Check for chat messages
+                    # Sync player selection with server's state
+                    if "player_selection" in self.game_state:
+                        old_selection = self.player_selection.copy()
+                        self.player_selection = self.game_state["player_selection"]
+                        if old_selection != self.player_selection:
+                            print(f"Player selection updated: {old_selection} -> {self.player_selection}")
+
+                        # Create fighters if they don't exist yet
+                        if self.fighter_1 is None and self.fighter_2 is None and self.game_state.get("game_active", False):
+                            self.create_fighters()
+
+                    # Update chat messages
                     if "chat_messages" in self.game_state:
-                       if self.chat_messages != self.game_state["chat_messages"]:
-                        self.chat_messages = self.game_state["chat_messages"]
-                        self.show_chat_messages = True
-                        self.chat_display_timer = pygame.time.get_ticks()
-                        
-                    # Check for round state changes
+                        if self.chat_messages != self.game_state["chat_messages"]:
+                            self.chat_messages = self.game_state["chat_messages"]
+                            self.show_chat_messages = True
+                            self.chat_display_timer = pygame.time.get_ticks()
+
+                    # Handle round state changes
                     new_round_over = self.game_state["round_over"]
-                    
-                    # Detect round transitions (was over, now starting new round)
                     if self.was_round_over and not new_round_over:
                         print("New round starting - resetting local fighter state")
-                        # Reset local state for controlled fighter
                         if self.player_id == "player1":
                             self.reset_fighter_state(self.fighter_1, self.fighter_1_initial_x, self.fighter_1_initial_y)
                         elif self.player_id == "player2":
                             self.reset_fighter_state(self.fighter_2, self.fighter_2_initial_x, self.fighter_2_initial_y)
-                    
-                    # Update round state
+
                     self.was_round_over = new_round_over
                     self.round_over = new_round_over
                     self.game_over = self.game_state["game_over"]
                     self.winner = self.game_state["winner"]
-                    
+
+                    # Update fighter states
                     if self.game_state["game_active"] and self.fighter_1 and self.fighter_2:
-                        # Update fighter states based on player role
                         if self.player_id == "player1":
-                            # For player1: Only update health from server (in case of taking damage)
                             self.fighter_1.health = self.game_state["player1"]["health"]
                             self.fighter_1.hit = self.game_state["player1"]["hit"]
-                            
-                            # Update entire state of opponent
+
                             if "player2" in self.game_state:
-                                self.fighter_2.rect.x = self.game_state["player2"]["x"]
-                                self.fighter_2.rect.y = self.game_state["player2"]["y"]
-                                self.fighter_2.health = self.game_state["player2"]["health"]
-                                self.fighter_2.action = self.game_state["player2"]["action"]
-                                self.fighter_2.frame_index = self.game_state["player2"]["frame_index"]
-                                self.fighter_2.flip = self.game_state["player2"]["flip"]
-                                self.fighter_2.attacking = self.game_state["player2"]["attacking"]
-                                self.fighter_2.hit = self.game_state["player2"]["hit"]
-                                
+                                self.update_fighter_state(self.fighter_2, self.game_state["player2"])
                         elif self.player_id == "player2":
-                            # For player2: Only update health from server (in case of taking damage)
                             self.fighter_2.health = self.game_state["player2"]["health"]
                             self.fighter_2.hit = self.game_state["player2"]["hit"]
-                            
-                            # Update entire state of opponent
+
                             if "player1" in self.game_state:
-                                self.fighter_1.rect.x = self.game_state["player1"]["x"]
-                                self.fighter_1.rect.y = self.game_state["player1"]["y"]
-                                self.fighter_1.health = self.game_state["player1"]["health"]
-                                self.fighter_1.action = self.game_state["player1"]["action"]
-                                self.fighter_1.frame_index = self.game_state["player1"]["frame_index"]
-                                self.fighter_1.flip = self.game_state["player1"]["flip"]
-                                self.fighter_1.attacking = self.game_state["player1"]["attacking"]
-                                self.fighter_1.hit = self.game_state["player1"]["hit"]
-                
+                                self.update_fighter_state(self.fighter_1, self.game_state["player1"])
+
             except socket.timeout:
-                # Just retry on timeout
                 continue
-            except ConnectionResetError:
-                print("Connection reset by server")
-                break
-            except ConnectionAbortedError:
-                print("Connection aborted")
+            except (ConnectionResetError, ConnectionAbortedError):
+                print("Connection lost")
                 break
             except Exception as e:
                 print(f"Error receiving data: {e}")
                 break
-                
+
         print("Disconnected from server")
         self.connection_established = False
         self.running = False
+
+    def update_fighter_state(self, fighter, state):
+        """Update a fighter's state based on server data"""
+        fighter.rect.x = state["x"]
+        fighter.rect.y = state["y"]
+        fighter.health = state["health"]
+        fighter.action = state["action"]
+        fighter.frame_index = state["frame_index"]
+        fighter.flip = state["flip"]
+        fighter.attacking = state["attacking"]
+        fighter.hit = state["hit"]
         
     def send_data(self, data):
         """Send data to server with error handling"""
@@ -665,6 +663,7 @@ class GameClient:
                             self.character_selection = True
                     elif self.character_selection:
                         self.draw_character_selection()
+                        selection_changed = False  # Initialize selection_changed to False
                         for event in pygame.event.get():
                             if event.type == pygame.QUIT:
                                 self.running = False
@@ -672,31 +671,45 @@ class GameClient:
                                 self.client.close()
                                 sys.exit()
                             elif event.type == pygame.KEYDOWN:
-                               # if self.player_id == "player1":
+                                #if self.player_id == "player1":
                                     if event.key == pygame.K_1:
                                         self.player_selection[0] = 0
+                                        selection_changed = True
                                     elif event.key == pygame.K_2:
                                         self.player_selection[0] = 1
+                                        selection_changed = True
                                     elif event.key == pygame.K_3:
                                         self.player_selection[0] = 2
+                                        selection_changed = True
                                     elif event.key == pygame.K_4:
                                         self.player_selection[0] = 3
-                               # elif self.player_id == "player2":
+                                        selection_changed = True
+                                # elif self.player_id == "player2":
                                     if event.key == pygame.K_6:
                                         self.player_selection[1] = 0
+                                        selection_changed = True
                                     elif event.key == pygame.K_7:
                                         self.player_selection[1] = 1
+                                        selection_changed = True
                                     elif event.key == pygame.K_8:
                                         self.player_selection[1] = 2
+                                        selection_changed = True
                                     elif event.key == pygame.K_9:
                                         self.player_selection[1] = 3
-                           
-                                    elif event.key == pygame.K_RETURN:
-                                        self.send_data({"status": "selection_done", "player_id": self.player_id,
-                                                    "selection": self.player_selection[self.player_id[-1] == '2']})
-                                        self.character_selection = False
-                                        self.send_data({"status": "ready", "player_id": self.player_id})
-                            # Tell server we're ready
+                                        selection_changed = True
+                                            
+                            if selection_changed:
+                                # Update character selection on server
+                                self.send_data({"status": "selection_changed", "player_id": self.player_id,
+                                                "selection": self.player_selection})
+                            elif event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
+                                self.send_data({"status": "selection_done", "player_id": self.player_id,
+                                                "selection": self.player_selection[self.player_id[-1] == '2']})
+                                self.send_data({"status": "ready", "player_id": self.player_id})
+                        
+                        # Exit character selection only when server confirms game_active
+                        if self.game_state and self.game_state.get("game_active", False):
+                            self.character_selection = False
                       
                     else:
                         # If we have game state and game is active

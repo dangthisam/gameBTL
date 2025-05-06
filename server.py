@@ -61,6 +61,7 @@ class GameServer:
         self.player_ids = {}  # Map socket to player ID
         self.ready_players = set() ## Track ready players
         self.selections_done = set()  # Track players who have selected characters  # Track ready players
+        self.selection_done = {"player1": False, "player2": False} # Track players who have selected characters
         
         self.round_start_time = 0
         self.last_count_update = 0
@@ -79,9 +80,9 @@ class GameServer:
             # Send initial game state
             with self.state_lock:
                 serialized_state = pickle.dumps(self.game_state)
-            client.send(serialized_state) # Send initial game state to the client
+            client.send(serialized_state)  # Send initial game state to the client
             
-            while True: # Loop to receive data from client
+            while True:  # Loop to receive data from client
                 # Receive data from client with timeout
                 client.settimeout(1.0)  # 1-second timeout for receiving data
                 try:
@@ -101,19 +102,30 @@ class GameServer:
                 
                 # Decode received data
                 try:
-                    client_data = pickle.loads(data) # Deserialize the data
+                    client_data = pickle.loads(data)
+                    print("data" , client_data)  # Deserialize the data
                     
-                    # Print received data for debugging (comment out in production)
-                    # print(f"Received from {player_id}: {client_data}")
+                    # Handle selection_update
+                    if client_data.get("status") == "selection_update":
+                        selection = client_data.get("selection")
+                        if player_id == "player1":
+                            self.game_state["player_selections"][0] = selection
+                        elif player_id == "player2":
+                            self.game_state["player_selections"][1] = selection
+                        print(f"{player_id} updated selection to {selection}")
+                        
+                        # Broadcast updated game state
+                        self.broadcast_game_state()
                     
-                    # Xử lý tin nhắn chat
+                    # Handle chat messages
                     if "chat" in client_data:
                         with self.state_lock:
-                          self.game_state["chat_messages"].append(client_data["chat"])
-                        # Giới hạn số lượng tin nhắn (ví dụ: tối đa 50 tin nhắn)
-                          if len(self.game_state["chat_messages"]) > 50:
+                            self.game_state["chat_messages"].append(client_data["chat"])
+                            # Limit the number of messages (e.g., max 50 messages)
+                            if len(self.game_state["chat_messages"]) > 50:
                                 self.game_state["chat_messages"] = self.game_state["chat_messages"][-50:]
-                    # Process based on message type
+                    
+                    # Process ready status
                     elif "status" in client_data and client_data["status"] == "ready":
                         self.ready_players.add(player_id)
                         print(f"{player_id} is ready. Ready players: {self.ready_players}")
@@ -131,15 +143,6 @@ class GameServer:
                                 self.game_state["player2"] = dict(self.initial_player2_state)
                             self.round_start_time = time.time()
                             self.last_count_update = self.round_start_time
-                    elif "status" in client_data and client_data["status"] == "selection_done":
-                        index = int(client_data["selection"])
-                        if 0 <= index < 4:  # Kiểm tra chỉ số hợp lệ
-                            with self.state_lock:
-                                self.game_state["player_selections"][player_id[-1] == '2'] = index
-                                self.selections_done.add(player_id)
-                                print(f"{player_id} selected character index: {index}")
-                            if len(self.selections_done) == 2:
-                                print("Both players have selected characters, waiting for ready status.")
                     
                     # Update player state if it's a player update
                     elif "player_id" in client_data and client_data["player_id"] == player_id:
@@ -177,7 +180,16 @@ class GameServer:
                 self.game_state["game_active"] = False
                 
             # Broadcast to remaining clients
-            self.broadcast_game_state() # Send updated state to remaining clients
+            self.broadcast_game_state()  # Send updated state to remaining clients
+
+    def periodic_broadcast(self):
+        """Periodically broadcast game state to all clients"""
+        while True:
+            try:
+                self.broadcast_game_state()
+                time.sleep(0.1)  # Broadcast every 0.1 seconds
+            except Exception as e:
+                print(f"Error in periodic broadcast: {e}")
             
     def process_attack_interactions(self):
         """Process attack interactions between players"""
