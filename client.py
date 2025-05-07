@@ -41,8 +41,8 @@ class GameClient:
         pygame.init()
         
         # Game window setup
-        self.SCREEN_WIDTH = 1000
-        self.SCREEN_HEIGHT = 600
+        self.SCREEN_WIDTH = 1300
+        self.SCREEN_HEIGHT = 800
         self.screen = pygame.display.set_mode((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
         pygame.display.set_caption("Brawler Game - Network Edition")
         self.clock = pygame.time.Clock()
@@ -93,10 +93,10 @@ class GameClient:
         self.MEDIEVALWARRIORPACK3_DATA = [self.MEDIEVALWARRIORPACK3_SIZE, self.MEDIEVALWARRIORPACK3_SCALE, self.MEDIEVALWARRIORPACK3_OFFSET]
         # Load resources
      
-        self.fighter_1_initial_x = 200 # toạ độ x ban đầu của fighter 1
-        self.fighter_1_initial_y = 310 # toạ độ y ban đầu của fighter 1
-        self.fighter_2_initial_x = 700
-        self.fighter_2_initial_y = 310
+        self.fighter_1_initial_x = 0 + 10  # Position fighter 1 at the left edge
+        self.fighter_1_initial_y = self.SCREEN_HEIGHT // 2 + 50  # Adjusted to be relative to screen height
+        self.fighter_2_initial_x = self.SCREEN_WIDTH - 100  # Position fighter 2 closer to the right edge
+        self.fighter_2_initial_y = self.SCREEN_HEIGHT // 2 + 50  # Adjusted to be relative to screen height
         self.fighter_1 = None
         self.fighter_2 = None
         # Initialize CHARACTER_DATA
@@ -372,24 +372,56 @@ class GameClient:
             self.draw_text("CHARACTER SELECTION", self.title_font, self.YELLOW, self.SCREEN_WIDTH // 2, 50)
 
             # Các ô nhân vật
-            character_width = 200 #kích thuoc
-            character_height = 250
+            character_width = 250 #kích thuoc
+            character_height = 350
             spacing = 40 # khoảng cách các ô
             # Tọa độ x bắt đầu, căn giữa bằng cách trừ tổng chiều rộng (4 ô + 3 khoảng cách) khỏi chiều rộng màn hình.
             start_x = (self.SCREEN_WIDTH - (character_width * 4 + spacing * 3)) // 2
 
             for i in range(4):
                 # lấy màu từ character_data
+                # Lấy màu và spritesheet từ CHARACTER_DATA
                 box_color = self.CHARACTER_DATA[i]["color"]
+                sprite_sheet = self.CHARACTER_DATA[i]["sheet"]
                 # .rect vẽ khung
-                pygame.draw.rect(self.screen, box_color,
-                                (start_x + i * (character_width + spacing), 120, character_width, character_height), 0)
-                pygame.draw.rect(self.screen, self.WHITE,
-                                (start_x + i * (character_width + spacing), 120, character_width, character_height), 3)
+                # Add a subtle shadow effect for the character box
+                shadow_rect = pygame.Rect(start_x + i * (character_width + spacing) + 5, 125, character_width, character_height)
+                pygame.draw.rect(self.screen, (50, 50, 50), shadow_rect, 0)
+
+                # Draw the main character box with a gradient effect
+                rect = pygame.Rect(start_x + i * (character_width + spacing), 120, character_width, character_height)
+                gradient_surface = pygame.Surface((character_width, character_height), pygame.SRCALPHA)
+                for y in range(character_height):
+                    alpha = int(255 * (1 - y / character_height))  # Gradient effect
+                    pygame.draw.line(gradient_surface, (0, 0, 0, alpha), (0, y), (character_width, y))
+                self.screen.blit(gradient_surface, rect.topleft)
+
+                # Draw the border for the character box
+                pygame.draw.rect(self.screen, self.WHITE, rect, 3)
 
                 # vẽ tên nhân vật(văn bản) lên khung
-                self.draw_text(self.CHARACTER_DATA[i]["name"], self.controls_font, self.WHITE, 
-                            start_x + i * (character_width + spacing) + character_width // 2, 140)
+                self.draw_text(self.CHARACTER_DATA[i]["name"].upper(), self.controls_font, self.GREEN, 
+                            start_x + i * (character_width + spacing) + character_width // 2, 190)
+                if sprite_sheet:
+            # Lấy frame đầu tiên từ spritesheet (giả sử mỗi frame có kích thước cố định)
+                    frame_width = self.CHARACTER_DATA[i]["data"][0]  # Kích thước frame (ví dụ: WARRIOR_SIZE)
+                    frame_height = frame_width  # Giả sử chiều cao bằng chiều rộng, điều chỉnh nếu cần
+                    scale_factor=2.2
+                    scale = self.CHARACTER_DATA[i]["data"][1]  # Scale factor
+                    scaled_width = int(frame_width * scale_factor)  # Phóng to chiều rộng
+                    scaled_height = int(frame_height * scale_factor)
+
+            # Tạo surface cho frame đầu tiên (frame_index = 0, action = 0 - idle)
+                    character_image = sprite_sheet.subsurface(pygame.Rect(0, 0, frame_width, frame_height))
+                    
+                    character_image = pygame.transform.scale(character_image, (scaled_width, scaled_height))
+
+            # Tính toán vị trí để đặt hình ảnh dưới tên, căn giữa khung
+                    image_x = start_x + i * (character_width + spacing) + (character_width - scaled_width) // 2
+                    image_y = 140  # Đặt cách tên 50 pixel
+
+            # Vẽ hình ảnh lên màn hình
+                self.screen.blit(character_image, (image_x, image_y-50))
 
                 # vẽ tên nhân vật trong mỗi ô
                 # Use self.player_selection instead of the parameter
@@ -399,12 +431,11 @@ class GameClient:
                 if self.player_selection[1] == i:
                     self.draw_text("P2", self.title_font, self.WHITE, 
                                 start_x + i * (character_width + spacing) + character_width // 2, 250)
+                                                # Vẽ instruction text
+                self.draw_text("PLAYER 1: 1-4 KEYS TO SELECT", self.controls_font, self.GREEN, self.SCREEN_WIDTH // 2, 550)
+                self.draw_text("PLAYER 2: 6-9 KEYS TO SELECT", self.controls_font, self.GREEN, self.SCREEN_WIDTH // 2, 600)
+                self.draw_text("PRESS ENTER TO START", self.controls_font, self.GREEN, self.SCREEN_WIDTH // 2, 750)
 
-            # Vẽ instruction text
-            self.draw_text("Player 1: 1-4 keys to select", self.controls_font, self.BLUE, self.SCREEN_WIDTH // 2, 400)
-            self.draw_text("Player 2: 6-9 keys to select", self.controls_font, self.RED, self.SCREEN_WIDTH // 2, 450)
-            self.draw_text("Press ENTER to start fighting", self.controls_font, self.GREEN, self.SCREEN_WIDTH // 2, 500)
-            
         
     def draw_left_aligned_text(self, text, font, text_col, x, y): # x, y are top-left corner coordinates
         """Draw left-aligned text"""
@@ -435,36 +466,66 @@ class GameClient:
         self.draw_text("KEYS TO PLAY", self.title_font, self.YELLOW, self.SCREEN_WIDTH // 2, 50)
         
         # Draw player 1 controls frame
-        pygame.draw.rect(self.screen, self.BLUE, (50, 120, 400, 350), 0)
-        pygame.draw.rect(self.screen, self.WHITE, (50, 120, 400, 350), 3)
-        
-        # Draw player 1 controls
-        self.draw_left_aligned_text("Player 1 (WARRIOR)", self.controls_font, self.WHITE, 75, 130)
-        self.draw_left_aligned_text("Left:         A", self.controls_font, self.WHITE, 75, 180)
-        self.draw_left_aligned_text("Right:        D", self.controls_font, self.WHITE, 75, 220)
-        self.draw_left_aligned_text("Up:           W", self.controls_font, self.WHITE, 75, 260)
-        self.draw_left_aligned_text("Attack 1:     R", self.controls_font, self.WHITE, 75, 300)
-        self.draw_left_aligned_text("Attack 2:     T", self.controls_font, self.WHITE, 75, 340)
-        self.draw_left_aligned_text("Attack 3:     Y", self.controls_font, self.WHITE, 75, 380)
-        
+        # Calculate new position for the player 1 controls frame
+        frame_width = 400
+        frame_height = 350
+        frame_x = 30 # Align to the left edge of the screen
+        frame_y = (self.SCREEN_HEIGHT - frame_height) // 2  # Center vertically
+
+        # Draw player 1 controls frame
+        # Draw player 1 controls frame with rounded corners
+        # Add a subtle shadow effect for the frame
+        shadow_rect = pygame.Rect(frame_x + 5, frame_y + 5, frame_width, frame_height)
+        pygame.draw.rect(self.screen, (50, 50, 50), shadow_rect, border_radius=15)
+
+        # Draw the main frame with rounded corners
+        pygame.draw.rect(self.screen, self.BLACK, (frame_x, frame_y, frame_width, frame_height), border_radius=15)
+        pygame.draw.rect(self.screen, self.WHITE, (frame_x, frame_y, frame_width, frame_height), 3, border_radius=15)
+
+        # Add a title for the player 1 controls
+        self.draw_text("PLAYER  1  CONTROLS ", self.controls_font, self.YELLOW, frame_x + frame_width // 2, frame_y + 40)
+
+        # Adjust spacing and alignment for player 1 controls
+        control_spacing = 40  # Space between each control line
+        start_y = frame_y + 80  # Starting y-coordinate for controls
+        self.draw_left_aligned_text("MOVE LEFT:    A", self.controls_font, self.GREEN, frame_x + 25, start_y)
+        self.draw_left_aligned_text("MOVE RIGHT:   D", self.controls_font, self.GREEN, frame_x + 25, start_y + control_spacing)
+        self.draw_left_aligned_text("JUMP:         W", self.controls_font, self.GREEN, frame_x + 25, start_y + 2 * control_spacing)
+        self.draw_left_aligned_text("ATTACK 1:     R", self.controls_font, self.GREEN, frame_x + 25, start_y + 3 * control_spacing)
+        self.draw_left_aligned_text("ATTACK 2:     T", self.controls_font, self.GREEN, frame_x + 25, start_y + 4 * control_spacing)
+        self.draw_left_aligned_text("ATTACK 3:     Y", self.controls_font, self.GREEN, frame_x + 25, start_y + 5 * control_spacing)
+        self.draw_left_aligned_text("CHAT:         C", self.controls_font, self.GREEN, frame_x + 25, start_y + 6 * control_spacing) # Chat control
+        # Calculate new position for the player 2 controls frame
+        frame_width = 400
+        frame_height = 350
+        frame_x = self.SCREEN_WIDTH - frame_width - 50  # 50px margin from the right edge
+        frame_y = (self.SCREEN_HEIGHT - frame_height) // 2  # Center vertically
+
         # Draw player 2 controls frame
-        pygame.draw.rect(self.screen, self.RED, (550, 120, 400, 350), 0)
-        pygame.draw.rect(self.screen, self.WHITE, (550, 120, 400, 350), 3)
-        
-        # Draw player 2 controls
-        self.draw_left_aligned_text("Player 2 (WIZARD)", self.controls_font, self.WHITE, 575, 130)
-        self.draw_left_aligned_text("Left:         <---", self.controls_font, self.WHITE, 575, 180)
-        self.draw_left_aligned_text("Right:        --->", self.controls_font, self.WHITE, 575, 220)
-        self.draw_left_aligned_text("Up:           |", self.controls_font, self.WHITE, 575, 260)
-        self.draw_left_aligned_text("Attack 1:     J", self.controls_font, self.WHITE, 575, 300)
-        self.draw_left_aligned_text("Attack 2:     K", self.controls_font, self.WHITE, 575, 340)
-        self.draw_left_aligned_text("Attack 3:     L", self.controls_font, self.WHITE, 575, 380)
-        
-        # Add chat control instructions
-        self.draw_left_aligned_text("Chat:         C", self.controls_font, self.GREEN, 75, 420) # Chat control
+        # Add a subtle shadow effect for the frame
+        shadow_rect = pygame.Rect(frame_x + 5, frame_y + 5, frame_width, frame_height)
+        pygame.draw.rect(self.screen, (50, 50, 50), shadow_rect, border_radius=15)
+
+        # Draw the main frame with rounded corners
+        pygame.draw.rect(self.screen, self.BLACK, (frame_x, frame_y, frame_width, frame_height), border_radius=15)
+        pygame.draw.rect(self.screen, self.WHITE, (frame_x, frame_y, frame_width, frame_height), 3, border_radius=15)
+
+        # Add a title for the player 2 controls
+        self.draw_text("PLAYER  2  CONTROLS", self.controls_font, self.YELLOW, frame_x + frame_width // 2, frame_y + 40)
+
+        # Adjust spacing and alignment for player 2 controls
+        control_spacing = 40  # Space between each control line
+        start_y = frame_y + 80  # Starting y-coordinate for controls
+        self.draw_left_aligned_text("MOVE LEFT:    Left Arrow", self.controls_font, self.GREEN, frame_x + 25, start_y)
+        self.draw_left_aligned_text("MOVE RIGHT:   Right Arrow", self.controls_font, self.GREEN, frame_x + 25, start_y + control_spacing)
+        self.draw_left_aligned_text("JUMP:         Up Arrow", self.controls_font, self.GREEN, frame_x + 25, start_y + 2 * control_spacing)
+        self.draw_left_aligned_text("ATTACK 1:     J", self.controls_font, self.GREEN, frame_x + 25, start_y + 3 * control_spacing)
+        self.draw_left_aligned_text("ATTACK 2:     K", self.controls_font, self.GREEN, frame_x + 25, start_y + 4 * control_spacing)
+        self.draw_left_aligned_text("ATTACK 3:     L", self.controls_font, self.GREEN, frame_x + 25, start_y + 5 * control_spacing)
+        self.draw_left_aligned_text("CHAT:         C", self.controls_font, self.GREEN, frame_x + 25, start_y + 6 * control_spacing) # Chat control
         
         # Display start prompt
-        self.draw_text("Press Space to continue", self.controls_font, self.GREEN, self.SCREEN_WIDTH // 2, 500) # Prompt to start game
+        self.draw_text("PRESS SPACE TO CONTINUE", self.controls_font, self.GREEN, self.SCREEN_WIDTH // 2, 700) # Prompt to start game
     
     def waiting_screen(self):
         """Show waiting for other player screen"""
@@ -725,12 +786,12 @@ class GameClient:
                                 if "player1" in self.game_state and "health" in self.game_state["player1"]:
                                     self.draw_health_bar(self.game_state["player1"]["health"], 20, 20)
                                 if "player2" in self.game_state and "health" in self.game_state["player2"]:
-                                    self.draw_health_bar(self.game_state["player2"]["health"], 580, 20)
+                                    self.draw_health_bar(self.game_state["player2"]["health"], self.SCREEN_WIDTH - 420, 20)
                                 
                                 # Update scores
                                 if "scores" in self.game_state:
                                     self.draw_left_aligned_text("P1: " + str(self.game_state["scores"][0]), self.score_font, self.RED, 20, 60)
-                                    self.draw_left_aligned_text("P2: " + str(self.game_state["scores"][1]), self.score_font, self.RED, 580, 60)
+                                    self.draw_left_aligned_text("P2: " + str(self.game_state["scores"][1]), self.score_font, self.RED, self.SCREEN_WIDTH - 20 - self.score_font.size("P2: " + str(self.game_state["scores"][1]))[0], 60)
                                 
                                 # Check if round is over
                                 if "round_over" in self.game_state and self.game_state["round_over"] and not self.game_state["game_over"]:

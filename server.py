@@ -14,26 +14,28 @@ class GameServer:
         self.server.listen(2)  # Accept only 2 connections (2 players)
        # self.game_state = {"player_selections": [0, 0], "game_active": False}
         print(f"Server running and listening on {host}:{port}")
+        self.SCREEN_WIDTH = 1300
+        self.SCREEN_HEIGHT = 800
         
         # Initial player states for reset
         # Player 1 state
         self.initial_player1_state = {
-            "x": 200, 
-            "y": 310, 
-            "health": 100, 
-            "action": 0, 
+            "x": 100,  # Position player 1 at the bottom-left corner
+            "y": self.SCREEN_HEIGHT - 200,  # Near the bottom of the screen
+            "health": 100,
+            "action": 0,
             "frame_index": 0,
             "flip": False,
             "attacking": False,
             "hit": False
         }
         # Player 2 state is flipped horizontally
-        # Adjust initial position and flip for player 2
+        # Position player 2 at the bottom-right corner
         self.initial_player2_state = {
-            "x": 700, 
-            "y": 310, 
-            "health": 100, 
-            "action": 0, 
+            "x": self.SCREEN_WIDTH - 150,  # Near the bottom-right corner
+            "y": self.SCREEN_HEIGHT-300,  # Near the bottom of the screen
+            "health": 100,
+            "action": 0,
             "frame_index": 0,
             "flip": True,
             "attacking": False,
