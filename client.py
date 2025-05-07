@@ -190,13 +190,16 @@ class GameClient:
     
     def connect(self):
         """Connect to the server with retry mechanism"""
-        while self.connection_retry_count < self.max_retries and not self.connection_established: ## Retry connection
+        while self.connection_retry_count < self.max_retries and not self.connection_established:
             try:
                 print(f"Attempting to connect to server at {self.addr} (Attempt {self.connection_retry_count + 1}/{self.max_retries})")
                 
                 # Set socket timeout for connection
                 self.client.settimeout(5)
-                self.client.connect(self.addr) # connect to server
+                
+                # The key fix: Make sure we're using a proper IP address for the server
+                # if not on the same machine
+                self.client.connect(self.addr)
                 
                 # Reset timeout to None (blocking mode) for normal operation
                 self.client.settimeout(None)
@@ -208,7 +211,7 @@ class GameClient:
                 if not data:
                     raise Exception("No data received from server")
                     
-                response = pickle.loads(data) # Unpickle the response
+                response = pickle.loads(data)  # Unpickle the response
                 
                 if "error" in response:
                     raise Exception(f"Server error: {response['error']}")
@@ -217,13 +220,13 @@ class GameClient:
                 print(f"You are {self.player_id}")
                 
                 # Send initial confirmation to server
-                self.send_data({"player_id": self.player_id, "status": "connected"}) ## Send confirmation to server gửi trạng thái kết nối
+                self.send_data({"player_id": self.player_id, "status": "connected"})
                 
                 # Start receiving data from server
                 self.connection_established = True
-                receive_thread = threading.Thread(target=self.receive_data) # Create a thread for receiving data
-                receive_thread.daemon = True # Daemonize thread to exit when main program exits
-                receive_thread.start() # Start the thread
+                receive_thread = threading.Thread(target=self.receive_data)
+                receive_thread.daemon = True
+                receive_thread.start()
                 
                 # Connection successful
                 return True
@@ -231,22 +234,21 @@ class GameClient:
             except Exception as e:
                 self.connection_error = str(e)
                 print(f"Connection error: {e}")
-                self.connection_retry_count += 1 # Increment retry count
+                self.connection_retry_count += 1
                 
                 # Close socket and create a new one for retry
                 try:
-                    self.client.close() # Close the socket
+                    self.client.close()
                 except:
                     pass
                     
-                self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # Recreate socket
-                time.sleep(1) # Wait before retrying connection
+                self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                time.sleep(1)  # Wait before retrying connection
         
         # If we've exhausted our retries
         if not self.connection_established:
             print("Failed to connect to server after multiple attempts")
             return False
-    
     def receive_data(self):
         """Continuously receive data from server"""
         self.client.settimeout(5)  # Set timeout to detect disconnection
@@ -313,14 +315,19 @@ class GameClient:
                                 self.update_fighter_state(self.fighter_1, self.game_state["player1"])
 
             except socket.timeout:
+                # Just a timeout, continue the loop
                 continue
-            except (ConnectionResetError, ConnectionAbortedError):
-                print("Connection lost")
+            except (ConnectionResetError, ConnectionAbortedError) as e:
+                print(f"Connection lost: {e}")
                 break
             except Exception as e:
                 print(f"Error receiving data: {e}")
-                break
-
+                # Try to continue instead of breaking immediately
+                if not self.running:
+                    break
+                time.sleep(0.5)  # Brief pause before trying again
+                continue
+        
         print("Disconnected from server")
         self.connection_established = False
         self.running = False
@@ -338,22 +345,22 @@ class GameClient:
         
     def send_data(self, data):
         """Send data to server with error handling"""
+        """Send data to server with error handling"""
         if not self.connection_established:
             return
             
         try:
-            print(f"Sending data: {data}")
-            serialized_data = pickle.dumps(data) # Serialize data
-            self.client.send(serialized_data) # Send data to server
-            print(f"Data sent successfully: {data}")
+            serialized_data = pickle.dumps(data)
+            self.client.send(serialized_data)
         except ConnectionResetError:
             print("Connection reset by server while sending data")
             self.connection_established = False
             self.running = False
         except Exception as e:
             print(f"Error sending data: {e}")
+            # Don't immediately set running to False
+            # This allows the receive thread to handle reconnection if needed
             self.connection_established = False
-            self.running = False
     
     def draw_text(self, text, font, text_col, x, y):
         """Draw text on screen"""
