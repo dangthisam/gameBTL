@@ -26,12 +26,12 @@ class GameClient:
         self.chat_messages = []  # Danh sách tin nhắn nhận từ server
         self.chat_input = ""  # lưu trữ tin nhắn đang nhập
         self.chat_active = False  # Trạng thái nhập tin nhắn
-        self.max_chat_messages = 1 # Số tin nhắn tối đa hiển thị trên màn hình
+        self.max_chat_messages = 3 # Số tin nhắn tối đa hiển thị trên màn hình
 
             ## Chat message display control
         self.show_chat_messages = False      # Control chat messages visibility
         self.chat_display_timer = 0          # Timer for chat messages display
-        self.CHAT_DISPLAY_DURATION = 2000 # Duration to display chat messages (in milliseconds)
+        self.CHAT_DISPLAY_DURATION = 4000 # Duration to display chat messages (in milliseconds)
         # Track previous round_over state to detect new rounds
         self.was_round_over = False
         
@@ -59,6 +59,16 @@ class GameClient:
         self.PINK = (255, 192, 203)
         self.GRAY=(128,128,128)
         self.LIGHT_GRAY=(192,192,192)
+
+        # Chat-box tuning
+        self.CHAT_MIN_W = 250  # nhỏ nhất ~ 250 px
+        self.CHAT_MAX_W = 600  # lớn nhất
+        self.CHAT_H = 50  # chiều cao cố định
+        self.CHAT_PAD_X = 12  # lề trái/phải chữ
+        self.CHAT_PAD_Y = 10  # lề trên chữ
+        self.CHAT_MARGIN = 25  # cách mép màn hình
+        self.CHAT_BG_ALPHA = 110  # độ mờ
+        self.CHAT_BG_RADIUS = 8  # bo góc
         
         
         # Game variables
@@ -389,16 +399,14 @@ class GameClient:
             start_x = (self.SCREEN_WIDTH - (character_width * 4 + spacing * 3)) // 2
 
             for i in range(4):
-                # lấy màu từ character_data
-                # Lấy màu và spritesheet từ CHARACTER_DATA
+               
                 box_color = self.CHARACTER_DATA[i]["color"]
                 sprite_sheet = self.CHARACTER_DATA[i]["sheet"]
-                # .rect vẽ khung
-                # Add a subtle shadow effect for the character box
+             
                 shadow_rect = pygame.Rect(start_x + i * (character_width + spacing) + 5, 125, character_width, character_height)
                 pygame.draw.rect(self.screen, (50, 50, 50), shadow_rect, 0)
 
-                # Draw the main character box with a gradient effect
+              
                 rect = pygame.Rect(start_x + i * (character_width + spacing), 120, character_width, character_height)
                 gradient_surface = pygame.Surface((character_width, character_height), pygame.SRCALPHA)
                 for y in range(character_height):
@@ -433,8 +441,7 @@ class GameClient:
             # Vẽ hình ảnh lên màn hình
                 self.screen.blit(character_image, (image_x, image_y-50))
 
-                # vẽ tên nhân vật trong mỗi ô
-                # Use self.player_selection instead of the parameter
+               
                 if self.player_selection[0] == i:
                     self.draw_text("P1", self.title_font, self.WHITE, 
                                 start_x + i * (character_width + spacing) + character_width // 2, 200)
@@ -646,11 +653,11 @@ class GameClient:
                 self.client.close()
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_c:
-                    self.chat_active = not self.chat_active
-                    if not self.chat_active:
-                        self.chat_input = ""
-                elif self.chat_active:
+                if event.key == pygame.K_c and not self.chat_active:
+                    self.chat_active=True
+                    self.chat_input = ""
+                    continue
+                if self.chat_active:
                     if event.key == pygame.K_RETURN:
                         if self.chat_input:
                             self.send_data({"chat": f"{self.player_id}: {self.chat_input}"})
@@ -658,6 +665,9 @@ class GameClient:
                         self.chat_active = False
                     elif event.key == pygame.K_BACKSPACE:
                         self.chat_input = self.chat_input[:-1]
+                    elif event.key==pygame.K_ESCAPE:
+                        self.chat_active=False
+                        self.chat_input=""
                     elif event.key < 128:
                         self.chat_input += event.unicode
 
@@ -849,55 +859,75 @@ class GameClient:
                                     current_time = pygame.time.get_ticks()
                                     if current_time - self.chat_display_timer >= self.CHAT_DISPLAY_DURATION:
                                      self.show_chat_messages = False
-                                
-                                # Display chat messages
-                               # Display chat messages
+
+                                # --------- New compact chat bubble ---------
                                 if self.chat_messages and self.show_chat_messages:
-                                    # Create a semi-transparent background for chat area
-                                    chat_bg = pygame.Surface((300, 100))
-                                    chat_bg.set_alpha(150)
-                                    chat_bg.fill(self.BLACK)
-                                    self.screen.blit(chat_bg, (250, 430))
-                                    
-                                    # Display most recent messages (limited by max_chat_messages)
+                                    font = pygame.font.Font(None, 30)
                                     recent_messages = self.chat_messages[-self.max_chat_messages:]
+
+                                    # Kích thước hộp dựa vào độ dài dòng, giới hạn 50 % chiều rộng màn hình
+                                    max_width = max(font.size(msg)[0] for msg in recent_messages)
+                                    line_height = font.get_height()
+                                    box_w = min(max_width + 40, int(self.SCREEN_WIDTH * 0.5))
+                                    box_h = line_height * len(recent_messages) + 20
+
+                                    # Tạo surface có kênh alpha để bo góc và đặt độ mờ một lần
+                                    chat_bg = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
+                                    pygame.draw.rect(
+                                        chat_bg,
+                                        (0, 0, 0, self.CHAT_BG_ALPHA),  # màu đen + alpha (đã khai báo hằng)
+                                        chat_bg.get_rect(),
+                                        border_radius=self.CHAT_BG_RADIUS
+                                    )
+
+                                    # Vị trí hộp – góc trái trên, ngay dưới thanh máu (điều chỉnh tuỳ ý)
+                                    pos_x = 20
+                                    pos_y = 90
+                                    self.screen.blit(chat_bg, (pos_x, pos_y))
+
+                                    # Vẽ nội dung tin nhắn
                                     for i, msg in enumerate(recent_messages):
-                                        # Determine message color based on player
-                                        if msg.startswith("player1:"):
-                                            msg_color = self.WHITE
-                                        elif msg.startswith("player2:"):
-                                            msg_color = self.WHITE
-                                        else:
-                                            msg_color = self.WHITE
-                                        
-                                        # Draw message text
-                                        input_text=pygame.font.SysFont(None, 30).render(msg, True, msg_color)
-                                        self.screen.blit(input_text, (260, 440 + i * 25))
-                                        #self.draw_left_aligned_text(msg, self.controls_font, msg_color, 260, 440 + i * 25)
+                                        txt_surf = font.render(msg, True, self.WHITE)
+                                        self.screen.blit(txt_surf, (pos_x + 20, pos_y + 10 + i * line_height))
+                                # -------------------------------------------
                                 
                                 # Display chat input if active
-                                if self.chat_active:
-                                    # Vẽ nền ô chat với viền bo góc
-                                    input_bg = pygame.Surface((700, 50))  # Giảm kích thước cho cân đối
-                                    input_bg.set_alpha(220)  # Tăng độ trong suốt nhẹ
-                                    input_bg.fill(self.LIGHT_GRAY)  # Sử dụng màu xám nhạt thay đen
-                                    pygame.draw.rect(input_bg, self.GRAY, (0, 0, 700, 50), 2, border_radius=10)  # Viền bo góc
-                                    self.screen.blit(input_bg, (100, 400))  # Dịch xuống dưới cùng
+                                if self.chat_active :
+                                # 1) Kích thước và vị trí an toàn
+                                    box_w = max(self.CHAT_MIN_W,
+                                                min(int(self.SCREEN_WIDTH * 0.4), self.CHAT_MAX_W))
+                                    box_x = self.CHAT_MARGIN
+                                    box_y = self.SCREEN_HEIGHT - self.CHAT_H - self.CHAT_MARGIN
 
-                                    # Vẽ văn bản với font đẹp hơn
-                                    font = pygame.font.Font(None, 32)  # Font mặc định, cỡ 32
-                                    input_text = f"Chat: {self.chat_input}"
-                                    input_surface = font.render(input_text, True, self.BLACK)  # Chữ đen trên nền xám
-                                    text_rect = input_surface.get_rect(center=(100 + 350, 400 + 25))  # Căn giữa ô
-                                    self.screen.blit(input_surface, text_rect)
+                                # 2) Nền mờ + viền
+                                    bg = pygame.Surface((box_w, self.CHAT_H), pygame.SRCALPHA)
+                                    bg.fill(self.LIGHT_GRAY)
+                                    pygame.draw.rect(bg, self.GRAY, bg.get_rect(), 2, border_radius=10)
+                                    self.screen.blit(bg, (box_x, box_y))
 
-                                                    # Thêm placeholder khi chưa nhập
-                                    
-                                    # Draw blinking cursor
-                                    if pygame.time.get_ticks() % 1000 < 500:  # Blink every half second
-                                        cursor_x = 110 + self.controls_font.size(input_text)[0]
-                                        pygame.draw.line(self.screen, self.GREEN, (cursor_x, 395), (cursor_x, 420), 2)
-                
+                                # 3) Chuỗi đang gõ (hoặc placeholder)
+                                    font = pygame.font.Font(None, 32)
+                                    raw_text    = self.chat_input
+                                    placeholder = "Chat:"
+
+                                    text = raw_text if raw_text else placeholder
+                                    max_text_w = box_w - 2*self.CHAT_PAD_X
+                                    # cắt bớt đầu nếu dài
+                                    while font.size(text)[0] > max_text_w:
+                                        text = text[1:]
+
+                                    text_surf = font.render(text, True, self.BLACK)
+                                    text_pos  = (box_x + self.CHAT_PAD_X, box_y + self.CHAT_PAD_Y)
+                                    self.screen.blit(text_surf, text_pos)
+
+                                    # 4) Con trỏ nhấp nháy đúng vị trí
+                                    if self.chat_active and pygame.time.get_ticks() % 1000 < 500:
+                                        cur_x = text_pos[0] + text_surf.get_width() + 2
+                                        top_y = text_pos[1]
+                                        bot_y = top_y + text_surf.get_height()
+                                        pygame.draw.line(self.screen, self.GREEN,
+                                                (cur_x, top_y), (cur_x, bot_y), 2)
+
                 # Update display
                 pygame.display.update()
                 
