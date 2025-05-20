@@ -600,29 +600,36 @@ class GameClient:
         if not self.game_state or "round_over" not in self.game_state or not self.game_state["round_over"]:
             return
     
-        # Create a semi-transparent overlay
+    # Create a semi-transparent overlay
         overlay = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
         overlay.set_alpha(180)
         overlay.fill(self.BLACK)
         self.screen.blit(overlay, (0, 0))
+        
+        # Get the round winner from the game state if available
+        # The server should be sending this information
+        round_winner = self.game_state.get("round_winner", 0)
     
-        # Check which player had health reduced to 0
-        if self.game_state["player1"]["health"] <= 0:
-            round_winner = 2
-        elif self.game_state["player2"]["health"] <= 0:
-            round_winner = 1
-        else:
-            round_winner = 0
+    # If round_winner isn't provided by the server, determine it from health values as fallback
+        if round_winner == 0:
+            if self.game_state["player1"]["health"] <= 0:
+                round_winner = 2
+            elif self.game_state["player2"]["health"] <= 0:
+                round_winner = 1
             
-        # Check if this client is the winner of the round
+    # Check if this client is the winner of the round
         if (self.player_id == "player1" and round_winner == 1) or (self.player_id == "player2" and round_winner == 2):
-            # Display VICTORY for the round winner
+        # Display VICTORY for the round winner
             self.draw_text("ROUND WON", self.game_over_font, self.GREEN, 
-                      self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
-        else:
-            # Display DEFEAT for the round loser
+                  self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
+        elif round_winner > 0:  # Only show ROUND LOST if there is a definite winner
+        # Display DEFEAT for the round loser
             self.draw_text("ROUND LOST", self.game_over_font, self.RED, 
-                      self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
+                  self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
+        else:
+        # If no winner determined (could be a draw or error), display neutral message
+            self.draw_text("ROUND OVER", self.game_over_font, self.YELLOW, 
+                  self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
             
     def process_input(self):
         """Process player input during gameplay"""
