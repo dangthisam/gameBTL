@@ -271,9 +271,9 @@ class GameClient:
                 # Update local game state based on server data
                 if self.game_state and "game_active" in self.game_state:
                     # Sync player selection with server's state
-                    if "player_selection" in self.game_state:
+                    if "player_selections" in self.game_state:
                         old_selection = self.player_selection.copy()
-                        self.player_selection = self.game_state["player_selection"]
+                        self.player_selection = self.game_state["player_selections"]
                         if old_selection != self.player_selection:
                             print(f"Player selection updated: {old_selection} -> {self.player_selection}")
 
@@ -749,7 +749,7 @@ class GameClient:
                                 self.client.close()
                                 sys.exit()
                             elif event.type == pygame.KEYDOWN:
-                                #if self.player_id == "player1":
+                                if self.player_id == "player1":
                                     if event.key == pygame.K_1:
                                         self.player_selection[0] = 0
                                         selection_changed = True
@@ -762,7 +762,7 @@ class GameClient:
                                     elif event.key == pygame.K_4:
                                         self.player_selection[0] = 3
                                         selection_changed = True
-                                # elif self.player_id == "player2":
+                                elif self.player_id == "player2":
                                     if event.key == pygame.K_6:
                                         self.player_selection[1] = 0
                                         selection_changed = True
@@ -775,15 +775,26 @@ class GameClient:
                                     elif event.key == pygame.K_9:
                                         self.player_selection[1] = 3
                                         selection_changed = True
-                                            
+                                    elif event.key == pygame.K_RETURN:
+                                        selected_index = self.player_selection[0] if self.player_id == "player1" else self.player_selection[1]
+                                        self.send_data({
+                                            "status": "ready",
+                                            "player_id": self.player_id,
+                                            "selection": selected_index
+                                        })
+                                        print(f"Sent ready signal with selection: {selected_index}")
+                                                                    
                             if selection_changed:
-                                # Update character selection on server
-                                self.send_data({"status": "selection_changed", "player_id": self.player_id,
-                                                "selection": self.player_selection})
-                            elif event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
-                                self.send_data({"status": "selection_done", "player_id": self.player_id,
-                                                "selection": self.player_selection[self.player_id[-1] == '2']})
-                                self.send_data({"status": "ready", "player_id": self.player_id})
+                                selected_index = (self.player_selection[0]
+                                    if self.player_id == "player1"
+                                    else self.player_selection[1])
+
+                                self.send_data({
+                                    "status": "selection_update",     # thống nhất tên
+                                    "player_id": self.player_id,
+                                    "selection": selected_index       # chỉ 1 số duy nhất
+                                    })
+
                         
                         # Exit character selection only when server confirms game_active
                         if self.game_state and self.game_state.get("game_active", False):

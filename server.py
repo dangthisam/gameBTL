@@ -108,16 +108,17 @@ class GameServer:
                     print("data" , client_data)  # Deserialize the data
                     
                     # Handle selection_update
-                    if client_data.get("status") == "selection_update":
-                        selection = client_data.get("selection")
+                    if client_data.get("status") in ("selection_update", "selection_changed"):
+                        sel_index = client_data.get("selection")
                         if player_id == "player1":
-                            self.game_state["player_selections"][0] = selection
+                            self.game_state["player_selections"][0] = sel_index
                         elif player_id == "player2":
-                            self.game_state["player_selections"][1] = selection
-                        print(f"{player_id} updated selection to {selection}")
+                            self.game_state["player_selections"][1] = sel_index
+                        print(f"{player_id} updated selection to {sel_index}")
                         
                         # Broadcast updated game state
                         self.broadcast_game_state()
+                        continue
                     
                     # Handle chat messages
                     if "chat" in client_data:
