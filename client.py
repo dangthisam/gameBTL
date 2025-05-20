@@ -57,6 +57,9 @@ class GameClient:
         self.GREEN = (0, 255, 0)
         self.ORANGE = (255, 165, 0)
         self.PINK = (255, 192, 203)
+        self.GRAY=(128,128,128)
+        self.LIGHT_GRAY=(192,192,192)
+        
         
         # Game variables
         self.intro_count = 5 # Countdown for intro
@@ -856,17 +859,21 @@ class GameClient:
                                 
                                 # Display chat input if active
                                 if self.chat_active:
-                                    # Draw chat input background
-                                    input_bg = pygame.Surface((800, 40))
-                                    input_bg.set_alpha(200)
-                                    input_bg.fill(self.BLACK)
-                                    self.screen.blit(input_bg, (100, 390))
-                                    
-                                    # Draw chat input text
+                                    # Vẽ nền ô chat với viền bo góc
+                                    input_bg = pygame.Surface((700, 50))  # Giảm kích thước cho cân đối
+                                    input_bg.set_alpha(220)  # Tăng độ trong suốt nhẹ
+                                    input_bg.fill(self.LIGHT_GRAY)  # Sử dụng màu xám nhạt thay đen
+                                    pygame.draw.rect(input_bg, self.GRAY, (0, 0, 700, 50), 2, border_radius=10)  # Viền bo góc
+                                    self.screen.blit(input_bg, (100, 400))  # Dịch xuống dưới cùng
+
+                                    # Vẽ văn bản với font đẹp hơn
+                                    font = pygame.font.Font(None, 32)  # Font mặc định, cỡ 32
                                     input_text = f"Chat: {self.chat_input}"
-                                    # Render input text without applying font
-                                    input_surface = pygame.font.SysFont(None, 30).render(input_text, True, self.WHITE)
-                                    self.screen.blit(input_surface, (110, 395))
+                                    input_surface = font.render(input_text, True, self.BLACK)  # Chữ đen trên nền xám
+                                    text_rect = input_surface.get_rect(center=(100 + 350, 400 + 25))  # Căn giữa ô
+                                    self.screen.blit(input_surface, text_rect)
+
+                                                    # Thêm placeholder khi chưa nhập
                                     
                                     # Draw blinking cursor
                                     if pygame.time.get_ticks() % 1000 < 500:  # Blink every half second
