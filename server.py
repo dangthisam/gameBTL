@@ -68,7 +68,7 @@ class GameServer:
         self.round_start_time = 0
         self.last_count_update = 0
         self.round_over_time = 0
-        self.WIN_SCORE = 5
+        self.WIN_SCORE = 3
         
         # Track last hit times for each player
         self.last_hit_times = {"player1": 0, "player2": 0}

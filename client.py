@@ -620,11 +620,11 @@ class GameClient:
     # Check if this client is the winner of the round
         if (self.player_id == "player1" and round_winner == 1) or (self.player_id == "player2" and round_winner == 2):
         # Display VICTORY for the round winner
-            self.draw_text("ROUND WON", self.game_over_font, self.GREEN, 
+            self.draw_text("ROUND OVER", self.game_over_font, self.YELLOW, 
                   self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
         elif round_winner > 0:  # Only show ROUND LOST if there is a definite winner
         # Display DEFEAT for the round loser
-            self.draw_text("ROUND LOST", self.game_over_font, self.RED, 
+            self.draw_text("ROUND OVER", self.game_over_font, self.YELLOW, 
                   self.SCREEN_WIDTH // 2, self.SCREEN_HEIGHT // 2 - 100)
         else:
         # If no winner determined (could be a draw or error), display neutral message
@@ -775,14 +775,14 @@ class GameClient:
                                     elif event.key == pygame.K_9:
                                         self.player_selection[1] = 3
                                         selection_changed = True
-                                    elif event.key == pygame.K_RETURN:
-                                        selected_index = self.player_selection[0] if self.player_id == "player1" else self.player_selection[1]
-                                        self.send_data({
+                                if event.key == pygame.K_RETURN:
+                                    selected_index = self.player_selection[0] if self.player_id == "player1" else self.player_selection[1]
+                                    self.send_data({
                                             "status": "ready",
                                             "player_id": self.player_id,
                                             "selection": selected_index
                                         })
-                                        print(f"Sent ready signal with selection: {selected_index}")
+                                    print(f"Sent ready signal with selection: {selected_index}")
                                                                     
                             if selection_changed:
                                 selected_index = (self.player_selection[0]
