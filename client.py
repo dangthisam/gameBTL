@@ -11,6 +11,7 @@ from fighter import Fighter
 class GameClient:
     def __init__(self, host='localhost', port=5555):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.server = host # Server address
         self.port = port # Server port
         self.addr = (self.server, self.port) # Server address tuple
@@ -429,12 +430,11 @@ class GameClient:
                     scaled_width = int(frame_width * scale_factor)  # Phóng to chiều rộng
                     scaled_height = int(frame_height * scale_factor)
 
-            # Tạo surface cho frame đầu tiên (frame_index = 0, action = 0 - idle)
+            #
                     character_image = sprite_sheet.subsurface(pygame.Rect(0, 0, frame_width, frame_height))
                     
                     character_image = pygame.transform.scale(character_image, (scaled_width, scaled_height))
 
-            # Tính toán vị trí để đặt hình ảnh dưới tên, căn giữa khung
                     image_x = start_x + i * (character_width + spacing) + (character_width - scaled_width) // 2
                     image_y = 140  # Đặt cách tên 50 pixel
 
@@ -473,25 +473,21 @@ class GameClient:
     
     def draw_controls_screen(self):
         """Draw controls screen"""
-        # Draw dark translucent background
-        s = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT)) # Create a surface for the background
+        
+        s = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT)) 
         s.set_alpha(220) # Set alpha for transparency
         s.fill(self.BLACK) 
         self.screen.blit(s, (0, 0))
         
         # Draw title
         self.draw_text("KEYS TO PLAY", self.title_font, self.YELLOW, self.SCREEN_WIDTH // 2, 50)
-        
-        # Draw player 1 controls frame
-        # Calculate new position for the player 1 controls frame
+       
         frame_width = 400
         frame_height = 350
         frame_x = 30 # Align to the left edge of the screen
         frame_y = (self.SCREEN_HEIGHT - frame_height) // 2  # Center vertically
 
-        # Draw player 1 controls frame
-        # Draw player 1 controls frame with rounded corners
-        # Add a subtle shadow effect for the frame
+       
         shadow_rect = pygame.Rect(frame_x + 5, frame_y + 5, frame_width, frame_height)
         pygame.draw.rect(self.screen, (50, 50, 50), shadow_rect, border_radius=15)
 
@@ -502,9 +498,9 @@ class GameClient:
         # Add a title for the player 1 controls
         self.draw_text("PLAYER  1  CONTROLS ", self.controls_font, self.YELLOW, frame_x + frame_width // 2, frame_y + 40)
 
-        # Adjust spacing and alignment for player 1 controls
-        control_spacing = 40  # Space between each control line
-        start_y = frame_y + 80  # Starting y-coordinate for controls
+       
+        control_spacing = 40  
+        start_y = frame_y + 80
         self.draw_left_aligned_text("MOVE LEFT:    A", self.controls_font, self.GREEN, frame_x + 25, start_y)
         self.draw_left_aligned_text("MOVE RIGHT:   D", self.controls_font, self.GREEN, frame_x + 25, start_y + control_spacing)
         self.draw_left_aligned_text("JUMP:         W", self.controls_font, self.GREEN, frame_x + 25, start_y + 2 * control_spacing)
@@ -512,27 +508,26 @@ class GameClient:
         self.draw_left_aligned_text("ATTACK 2:     T", self.controls_font, self.GREEN, frame_x + 25, start_y + 4 * control_spacing)
         self.draw_left_aligned_text("ATTACK 3:     Y", self.controls_font, self.GREEN, frame_x + 25, start_y + 5 * control_spacing)
         self.draw_left_aligned_text("CHAT:         C", self.controls_font, self.GREEN, frame_x + 25, start_y + 6 * control_spacing) # Chat control
-        # Calculate new position for the player 2 controls frame
+      
         frame_width = 400
         frame_height = 350
-        frame_x = self.SCREEN_WIDTH - frame_width - 50  # 50px margin from the right edge
-        frame_y = (self.SCREEN_HEIGHT - frame_height) // 2  # Center vertically
+        frame_x = self.SCREEN_WIDTH - frame_width - 50 
 
-        # Draw player 2 controls frame
-        # Add a subtle shadow effect for the frame
+     
+       
         shadow_rect = pygame.Rect(frame_x + 5, frame_y + 5, frame_width, frame_height)
         pygame.draw.rect(self.screen, (50, 50, 50), shadow_rect, border_radius=15)
 
-        # Draw the main frame with rounded corners
+       
         pygame.draw.rect(self.screen, self.BLACK, (frame_x, frame_y, frame_width, frame_height), border_radius=15)
         pygame.draw.rect(self.screen, self.WHITE, (frame_x, frame_y, frame_width, frame_height), 3, border_radius=15)
 
-        # Add a title for the player 2 controls
+        
         self.draw_text("PLAYER  2  CONTROLS", self.controls_font, self.YELLOW, frame_x + frame_width // 2, frame_y + 40)
 
-        # Adjust spacing and alignment for player 2 controls
-        control_spacing = 40  # Space between each control line
-        start_y = frame_y + 80  # Starting y-coordinate for controls
+        
+        control_spacing = 40  
+        start_y = frame_y + 80  
         self.draw_left_aligned_text("MOVE LEFT:    Left Arrow", self.controls_font, self.GREEN, frame_x + 25, start_y)
         self.draw_left_aligned_text("MOVE RIGHT:   Right Arrow", self.controls_font, self.GREEN, frame_x + 25, start_y + control_spacing)
         self.draw_left_aligned_text("JUMP:         Up Arrow", self.controls_font, self.GREEN, frame_x + 25, start_y + 2 * control_spacing)
@@ -541,7 +536,7 @@ class GameClient:
         self.draw_left_aligned_text("ATTACK 3:     L", self.controls_font, self.GREEN, frame_x + 25, start_y + 5 * control_spacing)
         self.draw_left_aligned_text("CHAT:         C", self.controls_font, self.GREEN, frame_x + 25, start_y + 6 * control_spacing) # Chat control
         
-        # Display start prompt
+      
         self.draw_text("PRESS SPACE TO CONTINUE", self.controls_font, self.GREEN, self.SCREEN_WIDTH // 2, 700) # Prompt to start game
     
     def waiting_screen(self):
@@ -613,7 +608,7 @@ class GameClient:
         overlay.fill(self.BLACK)
         self.screen.blit(overlay, (0, 0))
         
-        # Get the round winner from the game state if available
+       
         # The server should be sending this information
         round_winner = self.game_state.get("round_winner", 0)
     
@@ -865,54 +860,53 @@ class GameClient:
                                     font = pygame.font.Font(None, 30)
                                     recent_messages = self.chat_messages[-self.max_chat_messages:]
 
-                                    # Kích thước hộp dựa vào độ dài dòng, giới hạn 50 % chiều rộng màn hình
+                                   
                                     max_width = max(font.size(msg)[0] for msg in recent_messages)
                                     line_height = font.get_height()
                                     box_w = min(max_width + 40, int(self.SCREEN_WIDTH * 0.5))
                                     box_h = line_height * len(recent_messages) + 20
 
-                                    # Tạo surface có kênh alpha để bo góc và đặt độ mờ một lần
+                                    
                                     chat_bg = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
                                     pygame.draw.rect(
                                         chat_bg,
-                                        (0, 0, 0, self.CHAT_BG_ALPHA),  # màu đen + alpha (đã khai báo hằng)
+                                        (0, 0, 0, self.CHAT_BG_ALPHA),  
                                         chat_bg.get_rect(),
                                         border_radius=self.CHAT_BG_RADIUS
                                     )
 
-                                    # Vị trí hộp – góc trái trên, ngay dưới thanh máu (điều chỉnh tuỳ ý)
+                                   
                                     pos_x = 20
                                     pos_y = 90
                                     self.screen.blit(chat_bg, (pos_x, pos_y))
 
-                                    # Vẽ nội dung tin nhắn
+                                    
                                     for i, msg in enumerate(recent_messages):
                                         txt_surf = font.render(msg, True, self.WHITE)
                                         self.screen.blit(txt_surf, (pos_x + 20, pos_y + 10 + i * line_height))
-                                # -------------------------------------------
                                 
-                                # Display chat input if active
+                                
+                                
                                 if self.chat_active :
-                                # 1) Kích thước và vị trí an toàn
+                               
                                     box_w = max(self.CHAT_MIN_W,
                                                 min(int(self.SCREEN_WIDTH * 0.4), self.CHAT_MAX_W))
                                     box_x = self.CHAT_MARGIN
                                     box_y = self.SCREEN_HEIGHT - self.CHAT_H - self.CHAT_MARGIN
 
-                                # 2) Nền mờ + viền
+                            
                                     bg = pygame.Surface((box_w, self.CHAT_H), pygame.SRCALPHA)
                                     bg.fill(self.LIGHT_GRAY)
                                     pygame.draw.rect(bg, self.GRAY, bg.get_rect(), 2, border_radius=10)
                                     self.screen.blit(bg, (box_x, box_y))
 
-                                # 3) Chuỗi đang gõ (hoặc placeholder)
                                     font = pygame.font.Font(None, 32)
                                     raw_text    = self.chat_input
                                     placeholder = "Chat:"
 
                                     text = raw_text if raw_text else placeholder
                                     max_text_w = box_w - 2*self.CHAT_PAD_X
-                                    # cắt bớt đầu nếu dài
+                                    
                                     while font.size(text)[0] > max_text_w:
                                         text = text[1:]
 
@@ -920,7 +914,7 @@ class GameClient:
                                     text_pos  = (box_x + self.CHAT_PAD_X, box_y + self.CHAT_PAD_Y)
                                     self.screen.blit(text_surf, text_pos)
 
-                                    # 4) Con trỏ nhấp nháy đúng vị trí
+                                    
                                     if self.chat_active and pygame.time.get_ticks() % 1000 < 500:
                                         cur_x = text_pos[0] + text_surf.get_width() + 2
                                         top_y = text_pos[1]
@@ -951,13 +945,13 @@ class GameClient:
                                 self.client.close()
                                 sys.exit()
 
-            # If we reach here, we've broken out of the game loop
+            
             # Check if we should retry connection
             if not self.connection_established and self.connection_retry_count < self.max_retries:
                 print("Retrying connection...")
                 continue  # Go back to main loop and try to connect again
             else:
-                # Either connected successfully or gave up trying
+               
                 pygame.quit()
                 self.client.close()
                 sys.exit()
